@@ -1,0 +1,446 @@
+.note {
+  --bg: var(--ing-tamago);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--w) * var(--pitch) - var(--gutter));
+  height: calc(var(--h) * var(--pitch) - var(--gutter));
+  transform: translate(calc(var(--x) * var(--pitch)), calc(var(--y) * var(--pitch)));
+  display: grid;
+  grid-template-rows: 1fr auto;
+  /* Proportional to the cell, like the text: see GUTTER_RATIO in Board.tsx. */
+  --u: calc(var(--pitch) / 100);
+  /* Breathing room: padding around the edge, and a gap between the tools
+     row, the text, and the author line so none of them crowd each other. */
+  /* One even inset on every side; the toolbar sits at the same inset. */
+  padding: calc(var(--u) * 10);
+  /* Notes stay light pastels in dark mode (muted, not dark), so everything
+     inside them uses dark ink: re-point the ink tokens for this subtree. */
+  --lacquer: var(--note-ink);
+  --lacquer-soft: color-mix(in srgb, var(--note-ink) 72%, transparent);
+  --lacquer-faint: color-mix(in srgb, var(--note-ink) 50%, transparent);
+  row-gap: calc(var(--u) * 5);
+  /* Text size per note (data-size), shared by everyone. S is the original. */
+  --fs: 19;
+  font-size: calc(var(--u) * var(--fs));
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--lacquer);
+  border: 1px solid color-mix(in srgb, var(--lacquer) 9%, transparent);
+  outline: 0 solid transparent;
+  touch-action: none;
+  user-select: none;
+  transition:
+    transform var(--dur-snap) var(--ease-snap),
+    width var(--dur-snap) var(--ease-snap),
+    height var(--dur-snap) var(--ease-snap),
+    background-color 240ms var(--ease-soft),
+    box-shadow 160ms var(--ease-soft),
+    outline-color 160ms var(--ease-soft);
+}
+
+.note[data-size="s"] {
+  --fs: 15;
+}
+.note[data-size="m"] {
+  --fs: 19;
+}
+.note[data-size="l"] {
+  --fs: 24;
+}
+.note[data-size="xl"] {
+  --fs: 31;
+}
+
+.note[data-color="tamago"] {
+  --bg: var(--ing-tamago);
+}
+.note[data-color="sake"] {
+  --bg: var(--ing-sake);
+}
+.note[data-color="edamame"] {
+  --bg: var(--ing-edamame);
+}
+.note[data-color="ume"] {
+  --bg: var(--ing-ume);
+}
+.note[data-color="nori"] {
+  --bg: var(--ing-nori);
+}
+.note[data-color="shiso"] {
+  --bg: var(--ing-shiso);
+}
+
+.note:focus-visible {
+  outline: 2px solid var(--shu);
+  outline-offset: 2px;
+}
+
+/* You're carrying it: it follows the pointer freely, lifted. */
+.note[data-carried] {
+  transform: translate(var(--carry-x), var(--carry-y)) scale(1.02);
+  box-shadow: var(--lift-shadow);
+  z-index: 30;
+  transition:
+    width var(--dur-snap) var(--ease-snap),
+    height var(--dur-snap) var(--ease-snap),
+    box-shadow 160ms var(--ease-soft);
+}
+
+.note[data-mode="lifted"]:not([data-carried]) {
+  box-shadow: var(--lift-shadow);
+  z-index: 30;
+}
+
+/* Someone else is carrying it or typing in it: ring in their color. */
+.note[data-mode="remote-lifted"],
+.note:has(.typing) {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+  z-index: 20;
+}
+
+.note[data-mode="remote-lifted"] {
+  box-shadow: var(--lift-shadow);
+}
+
+.note[data-editing] {
+  user-select: text;
+  outline: 2px solid color-mix(in srgb, var(--lacquer) 35%, transparent);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------- tools */
+
+.tools,
+.meta {
+  font-size: calc(var(--u) * 13);
+}
+
+/*
+ * The toolbar lives in the bottom row, right of the byline and left of the
+ * resize grip, so it never pushes or covers the text. It shows on hover or
+ * keyboard focus.
+ */
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  height: 1.7em;
+  margin-left: auto;
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 14);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms var(--ease-soft);
+}
+
+.note:hover .tools,
+.note:focus-within .tools {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.swatch {
+  width: 0.85em;
+  height: 0.85em;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--lacquer) 30%, transparent);
+  background: var(--ing-tamago);
+}
+
+.swatch[data-swatch="sake"] {
+  background: var(--ing-sake);
+}
+.swatch[data-swatch="edamame"] {
+  background: var(--ing-edamame);
+}
+.swatch[data-swatch="ume"] {
+  background: var(--ing-ume);
+}
+.swatch[data-swatch="nori"] {
+  background: var(--ing-nori);
+}
+.swatch[data-swatch="shiso"] {
+  background: var(--ing-shiso);
+}
+
+.swatch[aria-pressed="true"] {
+  border-color: var(--lacquer);
+  box-shadow:
+    0 0 0 1.5px var(--bg),
+    0 0 0 3px var(--lacquer);
+}
+
+.sizeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  margin-left: 0.3em;
+  height: 1.6em;
+  padding: 0 0.5em;
+  border: 0;
+  border-radius: 0.4em;
+  background: transparent;
+  color: color-mix(in srgb, var(--lacquer) 70%, transparent);
+  font-weight: 600;
+  font-size: 0.85em;
+}
+
+.sizeBtn:hover {
+  background: color-mix(in srgb, var(--lacquer) 8%, transparent);
+  color: var(--lacquer);
+}
+
+.sizeTag {
+  display: inline-grid;
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  font-weight: 500;
+}
+
+/* "M" by default; on hover or keyboard focus it expands to "Medium". Both
+   labels share one grid cell and trade places with an eased width. */
+.sizeShort,
+.sizeFull {
+  grid-area: 1 / 1;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    max-width 200ms var(--ease-soft),
+    opacity 140ms var(--ease-soft);
+}
+
+.sizeShort {
+  max-width: 3em;
+}
+
+.sizeFull {
+  max-width: 0;
+  opacity: 0;
+}
+
+.sizeBtn:hover .sizeShort,
+.sizeBtn:focus-visible .sizeShort {
+  max-width: 0;
+  opacity: 0;
+}
+
+.sizeBtn:hover .sizeFull,
+.sizeBtn:focus-visible .sizeFull {
+  max-width: 8em;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sizeShort,
+  .sizeFull {
+    transition: none;
+  }
+}
+
+/* Delete sits alone in the top-right corner, shown on hover/focus, on a
+   small disc of the note's own color so it reads over text. */
+.remove {
+  position: absolute;
+  top: calc(var(--u) * 5);
+  right: calc(var(--u) * 5);
+  z-index: 2;
+  width: calc(var(--u) * 22);
+  height: calc(var(--u) * 22);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  font-size: calc(var(--u) * 14);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 140ms var(--ease-soft),
+    background-color 140ms var(--ease-soft);
+}
+
+.note:hover .remove,
+.note:focus-within .remove {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.remove svg {
+  width: 0.85em;
+  height: 0.85em;
+}
+
+/* ----------------------------------------------------------------- text */
+
+.body {
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.text,
+.input {
+  font-family: var(--font-ui);
+  font-size: 1em;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+  padding: 0;
+}
+
+.text {
+  height: 100%;
+  overflow: hidden;
+}
+
+.input {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  resize: none;
+  outline: none;
+}
+
+.placeholder {
+  color: color-mix(in srgb, var(--lacquer) 45%, transparent);
+}
+
+.selection {
+  background: color-mix(in srgb, var(--c) 45%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+
+/* Another person's caret: a beam in their color with a name flag. */
+.caret {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1.2em;
+  vertical-align: text-bottom;
+  border-left: 2px solid var(--c);
+  margin-right: -2px;
+  animation: blink 1.1s steps(1) infinite;
+}
+
+.flag {
+  position: absolute;
+  left: -2px;
+  bottom: 100%;
+  padding: 0 0.35em;
+  border-radius: 4px 4px 4px 0;
+  background: var(--c);
+  color: var(--c-ink, var(--pill-ink));
+  font-family: var(--font-mono);
+  font-size: 0.55em;
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@keyframes blink {
+  50% {
+    border-left-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    animation: none;
+  }
+}
+
+/* ----------------------------------------------------------------- meta */
+
+.meta {
+  font-family: var(--font-mono);
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  font-size: calc(var(--u) * 10);
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-height: 2.2em;
+  /* The toolbar shares this row; let it show in full. */
+  overflow: visible;
+  /* Leave room for the resize grip. */
+  padding-right: 2.2em;
+}
+
+.typing {
+  color: var(--lacquer);
+}
+
+.byline {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The resize grip: hidden at rest, revealed on hover or keyboard focus.
+   Sized from the cell, like everything else. */
+.resize {
+  position: absolute;
+  right: calc(var(--u) * 5);
+  bottom: calc(var(--u) * 5);
+  width: calc(var(--u) * 13);
+  height: calc(var(--u) * 13);
+  transition: opacity 140ms var(--ease-soft);
+}
+
+/* Long strokes and a generous hit area reaching into the corner, so it's
+   easy to grab. */
+.resize {
+  right: calc(var(--u) * 2);
+  bottom: calc(var(--u) * 2);
+  width: calc(var(--u) * 24);
+  height: calc(var(--u) * 24);
+  padding: calc(var(--u) * 3);
+  border-radius: 0 0 var(--radius) 0;
+  cursor: nwse-resize;
+  color: color-mix(in srgb, var(--lacquer) 45%, transparent);
+  opacity: 0;
+}
+
+.note:hover .resize,
+.note:focus-within .resize {
+  opacity: 1;
+}
+
+.resize:hover {
+  color: var(--lacquer);
+}
+
+/* Two hairline strokes, thin at any size. */
+.resize svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.resize path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.typing::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: 0.4em;
+  border-radius: 50%;
+  background: var(--c);
+}

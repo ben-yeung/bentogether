@@ -1,0 +1,7 @@
+import { defineConfig } from "vite";
+import solid from "@solidjs/vite-plugin";
+
+export default defineConfig({
+  plugins: [solid()],
+  build: { target: "es2023", sourcemap: true },
+});

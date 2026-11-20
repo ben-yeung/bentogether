@@ -1,0 +1,68 @@
+.mark {
+  flex: none;
+  display: block;
+}
+
+.frame {
+  fill: var(--lacquer);
+}
+
+.cell {
+  fill: var(--rice);
+}
+
+.shu {
+  fill: var(--shu);
+}
+
+.lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.lockup[data-size="lg"] {
+  gap: 1rem;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--step-1);
+  letter-spacing: -0.025em;
+  line-height: 1;
+  color: var(--lacquer);
+  white-space: nowrap;
+}
+
+.wordmark[data-size="lg"] {
+  font-size: var(--step-4);
+  letter-spacing: -0.035em;
+}
+
+/* The underline is the box's edge: it holds "benTo" and stops at the T's
+   far side, where "gether" (the people) carries on past the box. */
+.bento {
+  text-decoration: underline;
+  text-decoration-color: var(--shu);
+  text-decoration-thickness: 0.09em;
+  text-underline-offset: 0.12em;
+  text-decoration-skip-ink: none;
+}
+
+/* Watermark: one ink. The frame becomes an outline and the compartments
+   are filled, so it reads like a stamp. */
+.mono .frame {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.mono .cell,
+.mono .shu {
+  fill: currentColor;
+}
+
+.mono .cell {
+  opacity: 0.5;
+}

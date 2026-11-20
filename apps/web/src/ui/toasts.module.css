@@ -1,0 +1,32 @@
+.stack {
+  position: fixed;
+  left: 50%;
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: grid;
+  gap: 0.5rem;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-pill);
+  background: var(--lacquer);
+  color: var(--rice);
+  font-size: var(--step--1);
+  box-shadow: var(--lift-shadow);
+  animation: rise 220ms var(--ease-snap);
+}
+
+.toast[data-tone="error"] {
+  background: var(--danger);
+  color: #fff;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

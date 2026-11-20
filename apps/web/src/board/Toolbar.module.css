@@ -1,0 +1,255 @@
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 0.8rem var(--space);
+  width: 100%;
+  background: color-mix(in srgb, var(--rice) 82%, transparent);
+  backdrop-filter: blur(10px) saturate(1.2);
+}
+
+.home {
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.titleText {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.title h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--lacquer-soft);
+}
+
+/* The owner's title is a button: same look, plus a pencil on hover. */
+.titleBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  max-width: min(32rem, 100%);
+  margin: -0.15em 0;
+  padding: 0.15em 0.4em;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  white-space: nowrap;
+}
+
+.titleLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.titleBtn:hover {
+  background: var(--rice-sunk);
+  color: var(--lacquer);
+}
+
+.pencil {
+  flex: none;
+  width: 0.75em;
+  height: 0.75em;
+  opacity: 0;
+  transition: opacity 140ms var(--ease-soft);
+}
+
+.pencil path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.titleBtn:hover .pencil,
+.titleBtn:focus-visible .pencil {
+  opacity: 0.7;
+}
+
+.titleForm {
+  display: contents;
+}
+
+/* Auto-sizing title editor: the input and an invisible copy of its text
+   share one grid cell, so the cell (and the input) is exactly as wide as
+   the text. Same type as the title, so nothing jumps when editing starts. */
+.autosize {
+  display: inline-grid;
+  max-width: min(36rem, 100%);
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.autosize::after,
+.titleInput {
+  grid-area: 1 / 1;
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 0.15rem 0.1rem;
+}
+
+.autosize::after {
+  content: attr(data-value) " ";
+  visibility: hidden;
+  white-space: pre;
+  overflow: hidden;
+}
+
+.titleInput {
+  width: 100%;
+  min-width: 2ch;
+  color: var(--lacquer);
+}
+
+/* "by Mochi", the name in the creator's color, the same size as the title. */
+.byline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  letter-spacing: -0.015em;
+  color: var(--lacquer-faint);
+  white-space: nowrap;
+}
+
+.creator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--lacquer-soft);
+  font-weight: 550;
+}
+
+.creator::before {
+  content: "";
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.status {
+  font-size: var(--step--1);
+  font-family: var(--font-mono);
+  color: var(--lacquer-faint);
+  white-space: nowrap;
+}
+
+.status[data-status="reconnecting"],
+.status[data-status="closed"] {
+  color: var(--danger);
+}
+
+.people {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.faces {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.face {
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  margin-left: -0.4rem;
+  border-radius: 50%;
+  background: var(--c);
+  color: var(--c-ink, var(--pill-ink));
+  border: 2px solid var(--rice);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  animation: pop 240ms var(--ease-snap);
+}
+
+.face:first-child {
+  margin-left: 0;
+}
+
+.count {
+  font-size: var(--step--1);
+  color: var(--lacquer-soft);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.nameForm {
+  display: contents;
+}
+
+.nameInput {
+  width: 10rem;
+  font-weight: 550;
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
+.viewOnly {
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-pill);
+  background: var(--rice-sunk);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--lacquer-soft);
+  white-space: nowrap;
+}
+
+.settingsBtn {
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.settingsBtn svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}

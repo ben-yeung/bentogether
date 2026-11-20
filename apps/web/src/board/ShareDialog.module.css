@@ -1,0 +1,189 @@
+.share {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+}
+
+.head {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.title {
+  margin: 0;
+  /* Clear of the dialog's close button, and the same height so the two
+     line up: see .close in ui/Dialog.module.css. */
+  padding-right: 2.5rem;
+  line-height: 2.1rem;
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boxName {
+  color: var(--lacquer-soft);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--step--1);
+  color: var(--lacquer-faint);
+}
+
+.linkRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.linkInput {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+.section {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.sectionLabel {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lacquer-faint);
+}
+
+.people {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 2.5rem;
+}
+
+.face {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background: var(--c);
+  color: var(--c-ink, var(--pill-ink));
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.personName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.you {
+  color: var(--lacquer-faint);
+}
+
+.roleText {
+  font-size: var(--step--1);
+  color: var(--lacquer-faint);
+  padding-right: 0.6rem;
+}
+
+.select {
+  font-size: var(--step--1);
+}
+
+.selectPlain {
+  font-size: var(--step-0);
+  font-weight: 550;
+  justify-self: start;
+}
+
+.accessRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.accessIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ing-edamame) 70%, var(--rice));
+  color: var(--lacquer);
+}
+
+.accessIcon[data-mode="password"] {
+  background: color-mix(in srgb, var(--ing-tamago) 80%, var(--rice));
+}
+
+.accessIcon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.accessText {
+  display: grid;
+  min-width: 0;
+}
+
+.accessHint {
+  display: block;
+  font-size: var(--step--1);
+  color: var(--lacquer-faint);
+}
+
+.passwordRow {
+  display: flex;
+  gap: 0.5rem;
+  padding-left: 2.95rem;
+}
+
+.passwordInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.defaultRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--bamboo);
+  border-bottom: 1px solid var(--bamboo);
+}
+
+.foot {
+  display: flex;
+  justify-content: flex-end;
+}

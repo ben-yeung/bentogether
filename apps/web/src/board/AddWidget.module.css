@@ -1,0 +1,137 @@
+/* Floating, sticky to the bottom right of the screen while the grid scrolls. */
+.fab {
+  position: fixed;
+  right: calc(var(--space) + 0.25rem);
+  bottom: calc(var(--space) + 0.25rem + env(safe-area-inset-bottom));
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--shu);
+  color: var(--shu-ink);
+  box-shadow: 0 10px 22px -10px color-mix(in srgb, var(--shu) 70%, transparent);
+  transition:
+    transform 160ms var(--ease-snap),
+    box-shadow 160ms var(--ease-soft);
+}
+
+.fab:hover {
+  transform: scale(1.06);
+}
+
+.fab:active {
+  transform: scale(0.96);
+}
+
+.fab[disabled] {
+  opacity: 0.7;
+}
+
+.fab svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.picker {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+}
+
+.title {
+  margin: 0;
+  /* Clear of the dialog's close button, and the same height so the two
+     line up: see .close in ui/Dialog.module.css. */
+  padding-right: 2.5rem;
+  line-height: 2.1rem;
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.option {
+  display: grid;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--bamboo);
+  border-radius: var(--radius);
+  background: var(--rice);
+  text-align: left;
+  transition:
+    border-color 140ms var(--ease-soft),
+    transform 160ms var(--ease-snap);
+}
+
+.option:hover {
+  border-color: var(--lacquer-faint);
+  transform: translateY(-1px);
+}
+
+.preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  border-radius: 0.6rem;
+  background: var(--rice-sunk);
+}
+
+.previewNote {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  width: 42%;
+  aspect-ratio: 1;
+  padding: 0.55rem;
+  border-radius: 0.45rem;
+  background: var(--ing-tamago);
+  box-shadow: 0 6px 14px -10px color-mix(in srgb, var(--lacquer) 40%, transparent);
+}
+
+.previewNote span {
+  height: 0.22rem;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--lacquer) 25%, transparent);
+}
+
+.previewNote span:last-child {
+  width: 60%;
+}
+
+.optionText {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.optionName {
+  font-weight: 600;
+}
+
+.optionBlurb {
+  font-size: var(--step--1);
+  color: var(--lacquer-soft);
+}
+
+.more {
+  margin: 0;
+  font-size: var(--step--1);
+  color: var(--lacquer-faint);
+}

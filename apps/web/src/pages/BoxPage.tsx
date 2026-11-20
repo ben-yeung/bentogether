@@ -1,0 +1,259 @@
+import { createEffect, createMemo, createSignal, Errored, Loading, Show } from "solid-js";
+import { Board } from "../board/Board";
+import { Toolbar } from "../board/Toolbar";
+import { AddWidget } from "../board/AddWidget";
+import { openSession, PasswordRequired, type BoxSession } from "../board/session";
+import { Lockup, Mark } from "../brand/Logo";
+import { BoxNotFound, getBox } from "../lib/api";
+import {
+  loadDevice,
+  nameFor,
+  passwordFor,
+  rememberName,
+  rememberPassword,
+  saveHue,
+  suggestName,
+} from "../lib/identity";
+import { NameField } from "../ui/NameField";
+import { rememberBox } from "../lib/recent";
+import { ownerTokenFor } from "../lib/owner";
+import { navigate } from "../lib/router";
+import { createToaster } from "../ui/toasts";
+import { Splash } from "../ui/Splash";
+import styles from "./pages.module.css";
+
+/**
+ * A box, end to end:
+ * - first time here, a join modal asks your name for this box (its title
+ *   and who's at the table come from an async memo under `<Loading>`);
+ * - then the session is an async memo that resolves on the server's first
+ *   `welcome`, so `<Loading>` covers the wait and nothing renders half a box;
+ * - a missing box rejects either memo, and `<Errored>` shows it, with no
+ *   error branches in the components.
+ */
+export function BoxPage(props: { id: string }) {
+  // Writable derived signal (2.0): seeded from storage per box id, reset
+  // when the id changes, and set locally when you join.
+  const [name, setName] = createSignal(() => nameFor(props.id));
+  // Same pattern for a password protected bento: kept for this tab only.
+  const [password, setPassword] = createSignal(() => passwordFor(props.id));
+  const { push, Toasts } = createToaster();
+
+  function join(n: string, pw?: string) {
+    rememberName(props.id, n);
+    setName(n);
+    if (pw !== undefined) {
+      rememberPassword(props.id, pw);
+      setPassword(pw);
+    }
+  }
+
+  return (
+    <>
+      <Errored
+        fallback={(err, reset) =>
+          err() instanceof PasswordRequired ? (
+            // Asked for (or got wrong) the password: ask again, then retry.
+            <JoinGate
+              id={props.id}
+              needsPassword
+              error={(err() as PasswordRequired).wrong ? "That password didn't work." : null}
+              defaultName={name() ?? undefined}
+              onJoin={(n, pw) => {
+                join(n, pw);
+                reset();
+              }}
+            />
+          ) : (
+            <BoxError error={err()} />
+          )
+        }
+      >
+        <Show when={name()} fallback={<JoinGate id={props.id} onJoin={join} />}>
+          {(n) => (
+            <BoxRoom
+              id={props.id}
+              name={n()}
+              password={password()}
+              onRename={(next) => {
+                rememberName(props.id, next);
+                setName(next);
+              }}
+              toast={push}
+            />
+          )}
+        </Show>
+      </Errored>
+      <Toasts />
+    </>
+  );
+}
+
+function BoxRoom(props: {
+  id: string;
+  name: string;
+  password: string | null;
+  onRename: (name: string) => void;
+  toast: (message: string, tone?: "info" | "error") => void;
+}) {
+  const device = loadDevice();
+  // The socket's hello reads these on every (re)connect.
+  const session = createMemo(() =>
+    openSession(props.id, () => ({
+      ...device,
+      name: props.name,
+      ownerToken: ownerTokenFor(props.id),
+      password: props.password ?? undefined,
+    })),
+  );
+  return (
+    <Loading fallback={<SettingTable />}>
+      <BoxView
+        session={session()}
+        onRename={(n) => {
+          props.onRename(n);
+          session().rename(n);
+        }}
+        toast={props.toast}
+      />
+    </Loading>
+  );
+}
+
+function BoxView(props: {
+  session: BoxSession;
+  onRename: (name: string) => void;
+  toast: (message: string, tone?: "info" | "error") => void;
+}) {
+  // Compute extracts plain values; apply only does the side effect. Reading
+  // the store proxy inside apply is what STRICT_READ_UNTRACKED flags.
+  createEffect(
+    () => {
+      const meta = props.session.server.meta;
+      return meta ? { id: meta.id, title: meta.title, createdAt: meta.createdAt } : null;
+    },
+    (box) => {
+      if (!box) return;
+      document.title = `${box.title} · benTogether`;
+      rememberBox(box);
+    },
+  );
+  return (
+    <main class={styles.box}>
+      <Toolbar session={props.session} onRename={props.onRename} toast={props.toast} />
+      <Board session={props.session} onError={(m) => props.toast(m, "error")} />
+      <Show when={props.session.canEdit()}>
+        <AddWidget session={props.session} toast={props.toast} />
+      </Show>
+    </main>
+  );
+}
+
+/** "Pull up a chair": the box's name and who's there, then your name. */
+function JoinGate(props: {
+  id: string;
+  onJoin: (name: string, password?: string) => void;
+  /** Known up front from an earlier refusal; otherwise read from the bento's access. */
+  needsPassword?: boolean;
+  error?: string | null;
+  defaultName?: string | undefined;
+}) {
+  const info = createMemo(() => getBox(props.id));
+  const [hue, setHue] = createSignal(loadDevice().hue);
+  const suggested = props.defaultName ?? suggestName();
+  // Creators skip the password: their owner token gets them in.
+  const askPassword = createMemo(
+    () => !ownerTokenFor(props.id) && (props.needsPassword || info().access?.mode === "password"),
+  );
+  return (
+    <main class={styles.page}>
+      <Splash label="Join this bento">
+        <div class={styles.modalHead}>
+          <Lockup />
+        </div>
+        <Loading fallback={<p class={styles.joinTitle}>Finding the bento…</p>}>
+          <p class={styles.joinKicker}>You're invited to</p>
+          <h1 class={styles.joinTitle}>{info().title}</h1>
+          <p class={styles.joinMeta}>
+            {info().people === 0 ? "Nobody's here yet." : `${info().people} at the table`} ·{" "}
+            {info().compartments} {info().compartments === 1 ? "note" : "notes"}
+          </p>
+        </Loading>
+        <form
+          class={styles.form}
+          onSubmit={(e) => {
+            e.preventDefault();
+            const data = new FormData(e.currentTarget);
+            const n = data.get("name")?.toString().trim();
+            const pw = data.get("password")?.toString();
+            props.onJoin(n || suggested, askPassword() ? (pw ?? "") : undefined);
+          }}
+        >
+          <NameField
+            defaultName={suggested}
+            hue={hue()}
+            onHue={(h) => {
+              setHue(h);
+              saveHue(h);
+            }}
+            autofocus={!props.error}
+          />
+          <Loading>
+            <Show when={askPassword()}>
+              <label class={styles.field}>
+                <span class={styles.fieldLabel}>Password</span>
+                <input
+                  type="password"
+                  name="password"
+                  class={["field", styles.input]}
+                  autocomplete="current-password"
+                  aria-label="Password"
+                  aria-invalid={props.error ? "true" : "false"}
+                  autofocus={!!props.error}
+                  required
+                />
+                <Show when={props.error}>
+                  <span class={styles.fieldError} role="alert">
+                    {props.error}
+                  </span>
+                </Show>
+              </label>
+            </Show>
+          </Loading>
+          <button type="submit" class={["btn btn-primary", styles.submit]}>
+            Join the table
+          </button>
+        </form>
+      </Splash>
+    </main>
+  );
+}
+
+function SettingTable() {
+  return (
+    <div class={styles.center} role="status">
+      <div class={styles.loadingMark}>
+        <Mark size={44} />
+      </div>
+      <p>Setting the table…</p>
+    </div>
+  );
+}
+
+function BoxError(props: { error: unknown }) {
+  const missing = () => props.error instanceof BoxNotFound;
+  return (
+    <div class={styles.center}>
+      <Mark size={44} />
+      <h1 class={styles.heading}>{missing() ? "Nothing in this bento." : "Something went wrong."}</h1>
+      <p>
+        {missing()
+          ? "This bento doesn't exist, or it was cleared away."
+          : String((props.error as Error)?.message ?? props.error)}
+      </p>
+      <button type="button" class="btn btn-primary" onClick={() => navigate("/")}>
+        Start a new bento
+      </button>
+    </div>
+  );
+}

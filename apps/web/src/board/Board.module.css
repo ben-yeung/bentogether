@@ -1,0 +1,68 @@
+.scroller {
+  flex: 1;
+  overflow-x: auto;
+  padding: 0 var(--space) var(--space);
+}
+
+/* Borderless: the box is the whole screen. Cells are a soft dot grid at
+   the pitch, so the grid itself is the only structure you see. */
+.board {
+  position: relative;
+  min-width: 900px;
+  background-image: radial-gradient(
+    circle at calc(var(--pitch) / 2 - var(--gutter) / 2) calc(var(--pitch) / 2 - var(--gutter) / 2),
+    color-mix(in srgb, var(--lacquer) 16%, transparent) calc(var(--pitch) * 0.012),
+    transparent calc(var(--pitch) * 0.016)
+  );
+  background-size: var(--pitch) var(--pitch);
+  transition: height var(--dur-snap) var(--ease-snap);
+}
+
+/* While the window is being resized (and before the first measure),
+   rescaling snaps instead of animating. */
+.board[data-instant],
+.board[data-instant] :global(*) {
+  transition: none !important;
+}
+
+/* Your pointer is the board's CSS cursor (set inline); children inherit
+   it so notes, buttons and text keep the same hardware cursor. */
+.board[data-custom-cursor] :global(*) {
+  cursor: inherit !important;
+}
+
+.ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--w) * var(--pitch) - var(--gutter));
+  height: calc(var(--h) * var(--pitch) - var(--gutter));
+  transform: translate(calc(var(--x) * var(--pitch)), calc(var(--y) * var(--pitch)));
+  border-radius: var(--radius);
+  border: 2px dashed color-mix(in srgb, var(--lacquer) 30%, transparent);
+  background: color-mix(in srgb, var(--rice-raised) 60%, transparent);
+  transition: transform var(--dur-snap) var(--ease-snap);
+  pointer-events: none;
+}
+
+.empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  color: var(--lacquer-soft);
+  pointer-events: none;
+}
+
+.empty p {
+  margin: 0.2rem 0;
+}
+
+.emptyTitle {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--lacquer);
+}

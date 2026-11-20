@@ -1,0 +1,119 @@
+/* benTogether design tokens. See docs/BRAND.md. Components use only these. */
+
+:root {
+  color-scheme: light;
+
+  /* Foundation: rice and lacquer */
+  --rice: #f6f1e7;
+  --rice-raised: #fbf8f2;
+  --rice-sunk: #ece4d4;
+  --lacquer: #1f1a17;
+  --lacquer-soft: #5b514a;
+  --lacquer-faint: #8f8378;
+  --bamboo: #ddd1bb;
+  --bamboo-strong: #c9baa0;
+  --shu: #c8442f;
+  --shu-ink: #fff7f2;
+  --danger: #a3302a;
+
+  /* Ingredients: note colors */
+  --ing-l: 0.9;
+  --ing-tamago: oklch(0.92 0.085 95);
+  --ing-sake: oklch(0.86 0.07 45);
+  --ing-edamame: oklch(0.89 0.075 140);
+  --ing-ume: oklch(0.87 0.06 355);
+  --ing-nori: oklch(0.88 0.045 210);
+  --ing-shiso: oklch(0.86 0.05 305);
+
+  /* People: 18 vivid palette tones (PERSON_PALETTE in packages/shared),
+     lifted by this much lightness in dark mode. */
+  --person-dl: 0;
+  --pill-ink: #1d1916;
+  /* Notes are always light pastels, so their contents are always dark ink. */
+  --note-ink: #1f1a17;
+  /* Text on the deeper person colors (see personInk). */
+  --pill-ink-light: #ffffff;
+
+  /* Type */
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* Steps are rem, and rem itself is fluid (base.css), so the whole UI
+     scales together from a 1080p laptop to a 4K display. */
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.25rem;
+  --step-2: 1.6rem;
+  --step-3: 2.2rem;
+  --step-4: clamp(2.6rem, 1.4rem + 3vw, 4.4rem);
+
+  /* Shape */
+  --radius: 0.875rem;
+  --radius-box: 1.375rem;
+  --radius-pill: 999px;
+  /* Board.tsx reads this (in rem) to compute the grid pitch. */
+  --gutter: 0.625rem;
+  --space: clamp(1rem, 0.5rem + 1.2vw, 2.25rem);
+
+  /* Motion */
+  --ease-snap: cubic-bezier(0.2, 1.2, 0.35, 1);
+  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --dur-snap: 180ms;
+
+  --lift-shadow: 0 14px 30px -12px color-mix(in srgb, var(--lacquer) 40%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --rice: #171311;
+    --rice-raised: #211b18;
+    --rice-sunk: #120f0d;
+    --lacquer: #efe7da;
+    --lacquer-soft: #b9ada0;
+    --lacquer-faint: #7d7268;
+    --bamboo: #3a312b;
+    --bamboo-strong: #4d423a;
+    --shu: #e0634d;
+    --shu-ink: #1a0f0c;
+    --danger: #ef7d6f;
+    --ing-tamago: oklch(0.8 0.075 95);
+    --ing-sake: oklch(0.76 0.07 45);
+    --ing-edamame: oklch(0.78 0.07 140);
+    --ing-ume: oklch(0.76 0.06 355);
+    --ing-nori: oklch(0.77 0.045 210);
+    --ing-shiso: oklch(0.75 0.05 305);
+    --person-dl: 0.04;
+    --lift-shadow: 0 14px 30px -10px rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --rice: #171311;
+  --rice-raised: #211b18;
+  --rice-sunk: #120f0d;
+  --lacquer: #efe7da;
+  --lacquer-soft: #b9ada0;
+  --lacquer-faint: #7d7268;
+  --bamboo: #3a312b;
+  --bamboo-strong: #4d423a;
+  --shu: #e0634d;
+  --shu-ink: #1a0f0c;
+  --danger: #ef7d6f;
+  --ing-tamago: oklch(0.8 0.075 95);
+  --ing-sake: oklch(0.76 0.07 45);
+  --ing-edamame: oklch(0.78 0.07 140);
+  --ing-ume: oklch(0.76 0.06 355);
+  --ing-nori: oklch(0.77 0.045 210);
+  --ing-shiso: oklch(0.75 0.05 305);
+  --person-dl: 0.04;
+  --lift-shadow: 0 14px 30px -10px rgb(0 0 0 / 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-snap: 0ms;
+  }
+}

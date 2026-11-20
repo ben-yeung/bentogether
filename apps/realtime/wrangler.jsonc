@@ -1,0 +1,40 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "bentogether-realtime",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [{ "name": "BOX", "class_name": "Box" }],
+  },
+  // SQLite-backed Durable Objects are the only kind available on the free plan.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Box"] },
+    { "tag": "v2", "new_sqlite_classes": ["Directory"] },
+    // Public listing was removed; its Directory object goes with it.
+    { "tag": "v3", "deleted_classes": ["Directory"] },
+  ],
+  "ratelimits": [
+    // Box creation per IP. Generous locally (tests and dev scripts all share
+    // one IP); `env.production` below enforces the real limit.
+    { "name": "CREATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 1000, "period": 60 } },
+  ],
+  "vars": {
+    // Comma-separated origin patterns; `*` matches one DNS label fragment.
+    "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+  },
+  "env": {
+    "production": {
+      "name": "bentogether-realtime",
+      "vars": {
+        "ALLOWED_ORIGINS": "https://bentogether.vercel.app,https://bentogether-*.vercel.app",
+      },
+      "durable_objects": {
+        "bindings": [{ "name": "BOX", "class_name": "Box" }],
+      },
+      "ratelimits": [
+        { "name": "CREATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+      ],
+    },
+  },
+}

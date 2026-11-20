@@ -1,0 +1,48 @@
+.tag {
+  --tx: 1.05rem;
+  --ty: 1.2rem;
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: content-box;
+  width: var(--w, auto);
+  overflow: hidden;
+  padding: 0.18em 0.65em 0.24em;
+  border-radius: var(--radius-pill);
+  background: var(--c);
+  /* White on every pill; a faint shadow keeps it legible on the brightest tones. */
+  color: var(--pill-ink-light);
+  text-shadow: 0 0 2px color-mix(in srgb, var(--pill-ink) 45%, transparent);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--pill-ink) 14%, transparent);
+  transform: translate(var(--tx), var(--ty));
+}
+
+.tag[data-animate] {
+  transition:
+    width 70ms cubic-bezier(0.2, 0.6, 0.3, 1),
+    transform 420ms cubic-bezier(0.33, 0, 0.2, 1),
+    background-color 300ms ease;
+}
+
+/* Near the right edge the pill slides to the other side of the pointer. */
+.tag[data-flip-x] {
+  --tx: calc(-100% - 0.6rem);
+}
+
+.inner {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4em;
+}
+
+.name {
+  font-weight: 500;
+}
+
+.sep {
+  opacity: 0.6;
+}

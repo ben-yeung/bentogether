@@ -1,0 +1,219 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+/*
+ * Fluid root size. In CSS pixels:
+ *   1366 (small laptop)        → 15px
+ *   1920 (1080p)               → ~17px
+ *   2560 (1440p / 2K)          → ~20px
+ *   3840 (4K at 100% scaling)  → ~26px
+ * A 4K display at 150–200% OS scaling reports 1920–2560 CSS px and lands
+ * on the 1080p/2K sizes, which is what its owner asked for by scaling.
+ */
+html {
+  font-size: clamp(15px, calc(8.5px + 0.45vw), 26px);
+}
+
+body {
+  background: var(--rice);
+  color: var(--lacquer);
+  font-family: var(--font-ui);
+  font-size: var(--step-0);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--shu);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--shu) 28%, transparent);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  height: 2.4rem;
+  padding: 0 1.05rem;
+  border: 1px solid var(--bamboo-strong);
+  border-radius: var(--radius-pill);
+  background: var(--rice-raised);
+  font-weight: 550;
+  white-space: nowrap;
+  transition:
+    background-color 140ms var(--ease-soft),
+    border-color 140ms var(--ease-soft),
+    transform 140ms var(--ease-soft);
+}
+
+.btn:hover {
+  border-color: var(--lacquer-faint);
+}
+
+.btn:active {
+  transform: scale(0.97);
+}
+
+.btn[disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--shu);
+  border-color: var(--shu);
+  color: var(--shu-ink);
+}
+
+.btn-primary:hover {
+  border-color: var(--lacquer);
+}
+
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn-ghost:hover {
+  background: var(--rice-sunk);
+  border-color: transparent;
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--lacquer-soft);
+}
+
+.icon-btn:hover {
+  background: color-mix(in srgb, var(--lacquer) 8%, transparent);
+  color: var(--lacquer);
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  padding: 0.05em 0.4em;
+  border: 1px solid var(--bamboo-strong);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--rice-raised);
+}
+
+/*
+ * Inputs and dropdowns: quiet by default. No box, no glow; a faint
+ * underline that firms up while you edit. One recipe for every field.
+ *   .field         text inputs (title, names, passwords, the share link)
+ *   .field-select  dropdowns (permissions, access)
+ */
+.field,
+.field-select {
+  min-width: 0;
+  padding: 0.3rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--bamboo-strong);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  transition:
+    border-color 140ms var(--ease-soft),
+    box-shadow 140ms var(--ease-soft);
+}
+
+.field::placeholder {
+  color: var(--lacquer-faint);
+}
+
+.field:hover,
+.field-select:hover:not(:disabled) {
+  border-bottom-color: var(--lacquer-faint);
+}
+
+/* Editing: a firmer ink underline (2px, without shifting layout). */
+.field:focus,
+.field:focus-visible,
+.field-select:focus,
+.field-select:focus-visible {
+  outline: none;
+  border-bottom-color: var(--lacquer);
+  box-shadow: 0 1px 0 var(--lacquer);
+}
+
+.field[aria-invalid="true"] {
+  border-bottom-color: var(--danger);
+  box-shadow: 0 1px 0 var(--danger);
+}
+
+.field[readonly] {
+  border-bottom-style: dashed;
+  color: var(--lacquer-soft);
+  cursor: text;
+}
+
+/* Dropdowns read as text with a chevron; the underline shows on hover. */
+.field-select {
+  appearance: none;
+  padding-right: 1.3rem;
+  border-bottom-color: transparent;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%238f8378' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 0.1rem center / 0.75rem;
+  cursor: pointer;
+}
+
+.field-select:disabled {
+  padding-right: 0;
+  background-image: none;
+  cursor: default;
+  opacity: 1;
+  color: var(--lacquer-soft);
+}

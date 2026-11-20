@@ -1,0 +1,52 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: var(--space);
+  background: color-mix(in srgb, var(--lacquer) 22%, transparent);
+  backdrop-filter: blur(2px);
+  animation: fade 160ms var(--ease-soft);
+}
+
+.panel {
+  position: relative;
+  width: min(32rem, 100%);
+  max-height: calc(100dvh - 2 * var(--space));
+  overflow: auto;
+  border-radius: var(--radius-box);
+  background: var(--rice-raised);
+  border: 1px solid var(--bamboo);
+  box-shadow: 0 18px 36px -22px color-mix(in srgb, var(--lacquer) 30%, transparent);
+  animation: arrive 220ms var(--ease-snap);
+  /* Inside a box with a custom cursor, dialogs still use normal cursors. */
+  cursor: auto;
+}
+
+.panel[data-size="sm"] {
+  width: min(26rem, 100%);
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* Same top as the dialogs' 1.5rem padding, and as tall as their title line
+   (2.1rem), so the X sits centered on the title. */
+.close {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.1rem;
+  width: 2.1rem;
+  height: 2.1rem;
+}
