@@ -5,8 +5,14 @@ import { WidgetFrame, type WidgetProps } from "../../frame/WidgetFrame";
 import { changer, Footer, parts, TitleLine, useAuthor } from "../../frame/parts";
 import styles from "./FreeTimes.module.css";
 
-const ROWS = 48;
-/** Where the grid opens: 8:00, so mornings and evenings are a scroll away. */
+/**
+ * The grid shows the hours people can plausibly meet, 6:00 to 21:00 in each
+ * viewer's own time zone. Rows are half hours since local midnight.
+ */
+const FIRST_ROW = 12;
+const END_ROW = 42;
+const DAY_ROWS = Array.from({ length: END_ROW - FIRST_ROW }, (_, i) => FIRST_ROW + i);
+/** Where the grid opens: 8:00, so early mornings and evenings are a scroll away. */
 const FIRST_VISIBLE_ROW = 16;
 
 type Day = { y: number; m: number; d: number };
@@ -95,11 +101,7 @@ export function FreeTimes(props: WidgetProps) {
   /** Days with an all-free slot: their name gets a dot. */
   const allDays = createMemo(
     () =>
-      new Set(
-        days().flatMap((d, i) =>
-          Array.from({ length: ROWS }, (_, r) => r).some((r) => allAt(cellSlot(startDay(), d, r))) ? [i] : [],
-        ),
-      ),
+      new Set(days().flatMap((d, i) => (DAY_ROWS.some((r) => allAt(cellSlot(startDay(), d, r))) ? [i] : []))),
   );
 
   const laneOn = (lane: number, slot: number) => slot >= 0 && laneBits()[lane]?.[slot] === true;
@@ -135,7 +137,7 @@ export function FreeTimes(props: WidgetProps) {
     let top = 0;
     let where: { day: number; row: number } | null = null;
     days().forEach((day, di) => {
-      for (let row = 0; row < ROWS; row++) {
+      for (const row of DAY_ROWS) {
         const slot = cellSlot(startDay(), day, row);
         const n = slot < 0 ? 0 : freeAt()[slot]!.length;
         if (n > top) {
@@ -303,7 +305,7 @@ export function FreeTimes(props: WidgetProps) {
           <table class={styles.table} aria-label={`Free times, ${range()}`}>
             {cols()}
             <tbody>
-              <For each={Array.from({ length: ROWS }, (_, i) => i)}>
+              <For each={DAY_ROWS}>
                 {(row) => (
                   <tr data-row-index={row} data-hour={row % 2 === 0}>
                     <th class={styles.time} scope="row">
@@ -312,8 +314,8 @@ export function FreeTimes(props: WidgetProps) {
                     <For each={days()}>
                       {(day, dayIndex) => {
                         const slot = () => cellSlot(startDay(), day, row);
-                        const above = () => (row > 0 ? cellSlot(startDay(), day, row - 1) : -1);
-                        const below = () => (row < ROWS - 1 ? cellSlot(startDay(), day, row + 1) : -1);
+                        const above = () => (row > FIRST_ROW ? cellSlot(startDay(), day, row - 1) : -1);
+                        const below = () => (row < END_ROW - 1 ? cellSlot(startDay(), day, row + 1) : -1);
                         const who = () => (slot() < 0 ? [] : freeAt()[slot()]!);
                         const isMine = () => slot() >= 0 && mine()[slot()] === true;
                         const all = () => allAt(slot());
