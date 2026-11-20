@@ -42,6 +42,11 @@
   touch-action: none;
 }
 
+/* Room above the first row for its time, which sits on the row's top edge. */
+.scroller .table {
+  margin-top: 0.45em;
+}
+
 .table {
   width: 100%;
   border-collapse: separate;

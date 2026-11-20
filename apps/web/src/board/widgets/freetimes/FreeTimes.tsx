@@ -6,11 +6,11 @@ import { changer, Footer, parts, TitleLine, useAuthor } from "../../frame/parts"
 import styles from "./FreeTimes.module.css";
 
 /**
- * The grid shows the hours people can plausibly meet, 6:00 to 21:00 in each
+ * The grid shows the hours people can plausibly meet, 6:00 to 23:00 in each
  * viewer's own time zone. Rows are half hours since local midnight.
  */
 const FIRST_ROW = 12;
-const END_ROW = 42;
+const END_ROW = 46;
 const DAY_ROWS = Array.from({ length: END_ROW - FIRST_ROW }, (_, i) => FIRST_ROW + i);
 /** Where the grid opens: 8:00, so early mornings and evenings are a scroll away. */
 const FIRST_VISIBLE_ROW = 16;
