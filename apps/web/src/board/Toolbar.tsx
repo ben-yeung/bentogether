@@ -2,6 +2,7 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 import { NAME_MAX, TITLE_MAX } from "@bentogether/shared";
 import { Lockup } from "../brand/Logo";
 import { personVars } from "../lib/identity";
+import { viewingLabel } from "../lib/format";
 import { navigate } from "../lib/router";
 import type { BoxSession } from "./session";
 import { ShareDialog } from "./ShareDialog";
@@ -113,7 +114,7 @@ export function Toolbar(props: {
         </Show>
       </div>
 
-      <div class={styles.people} aria-label={`${people().length} at the table`}>
+      <div class={styles.people} aria-label={viewingLabel(people().length, { includesYou: true })}>
         <ul class={styles.faces}>
           <For each={people()} keyed={(p) => p.sid}>
             {(p) => (
@@ -127,7 +128,7 @@ export function Toolbar(props: {
             )}
           </For>
         </ul>
-        <span class={styles.count}>{people().length} at the table</span>
+        <span class={styles.count}>{viewingLabel(people().length, { includesYou: true })}</span>
       </div>
 
       <Show

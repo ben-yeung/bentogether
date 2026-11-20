@@ -11,12 +11,14 @@ import {
   passwordFor,
   rememberName,
   rememberPassword,
+  handOffName,
   saveHue,
   suggestName,
 } from "../lib/identity";
 import { NameField } from "../ui/NameField";
 import { rememberBox } from "../lib/recent";
 import { ownerTokenFor } from "../lib/owner";
+import { viewingLabel } from "../lib/format";
 import { navigate } from "../lib/router";
 import { createToaster } from "../ui/toasts";
 import { Splash } from "../ui/Splash";
@@ -25,7 +27,7 @@ import styles from "./pages.module.css";
 /**
  * A box, end to end:
  * - first time here, a join modal asks your name for this box (its title
- *   and who's at the table come from an async memo under `<Loading>`);
+ *   and who's viewing it come from an async memo under `<Loading>`);
  * - then the session is an async memo that resolves on the server's first
  *   `welcome`, so `<Loading>` covers the wait and nothing renders half a box;
  * - a missing box rejects either memo, and `<Errored>` shows it, with no
@@ -169,14 +171,29 @@ function JoinGate(props: {
     <main class={styles.page}>
       <Splash label="Join this bento">
         <div class={styles.modalHead}>
-          <Lockup />
+          <a
+            href="/"
+            class={styles.homeLink}
+            aria-label="benTogether home"
+            onClick={(e) => {
+              e.preventDefault();
+              // Carry over whatever name is in the field, so home knows you.
+              const typed = e.currentTarget
+                .closest("section")
+                ?.querySelector<HTMLInputElement>('input[name="name"]');
+              handOffName(typed?.value || suggested);
+              navigate("/");
+            }}
+          >
+            <Lockup />
+          </a>
         </div>
         <Loading fallback={<p class={styles.joinTitle}>Finding the bento…</p>}>
           <p class={styles.joinKicker}>You're invited to</p>
           <h1 class={styles.joinTitle}>{info().title}</h1>
           <p class={styles.joinMeta}>
-            {info().people === 0 ? "Nobody's here yet." : `${info().people} at the table`} ·{" "}
-            {info().compartments} {info().compartments === 1 ? "note" : "notes"}
+            {viewingLabel(info().people)} · {info().compartments}{" "}
+            {info().compartments === 1 ? "note" : "notes"}
           </p>
         </Loading>
         <form
