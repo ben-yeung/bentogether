@@ -30,12 +30,14 @@
   position: relative;
   min-height: 0;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .scroller {
   min-height: 0;
   overflow-y: auto;
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
   border-radius: 0.4em;
   touch-action: none;
 }
@@ -43,31 +45,30 @@
 .table {
   width: 100%;
   border-collapse: separate;
-  border-spacing: 2px 0;
+  border-spacing: 3px 0;
   table-layout: fixed;
   user-select: none;
 }
 
-.table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--bg);
+/* The day names, above the scroller and lined up with its columns. */
+.head {
+  overflow: hidden;
+  scrollbar-gutter: stable;
 }
 
 .corner {
   width: 3.4em;
 }
 
+/* Room below each name for the all-free dot, so every name sits level. */
 .day {
-  padding: 0.15em 0 0.3em;
+  position: relative;
+  padding: 0.15em 0 0.75em;
   font-size: 0.65em;
   font-weight: 600;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
-  background: color-mix(in srgb, var(--bg) 92%, transparent);
-  backdrop-filter: blur(4px);
 }
 
 .time {
@@ -83,38 +84,145 @@
 }
 
 /*
- * Each half hour: split into one stripe per person free then, in their own
- * colors (--stripes). Yours get a ring in your color.
+ * Each day is a soft track. Every person has their own lane down it, so a
+ * run of free half hours reads as one rounded bar in their color. Behind
+ * the lanes the track brightens with how many people are free; where
+ * everyone who answered is free, it lights up.
  */
 .cell {
-  height: 0.85em;
+  --row-h: 0.85em;
+  position: relative;
+  height: var(--row-h);
   padding: 0;
-  background: color-mix(in srgb, #fff 40%, transparent);
+  background: color-mix(
+    in srgb,
+    #fff calc(28% + var(--heat, 0) * 40%),
+    color-mix(in srgb, var(--lacquer) 4%, transparent)
+  );
   cursor: cell;
 }
 
-.cell[data-free] {
-  background: var(--stripes);
+/* Round the top and bottom of each day's track. */
+tbody tr:first-child .cell {
+  border-radius: 0.45em 0.45em 0 0;
 }
 
-tr[data-hour] .cell {
-  border-top: 1px solid color-mix(in srgb, var(--lacquer) 10%, transparent);
+tbody tr:last-child .cell {
+  border-radius: 0 0 0.45em 0.45em;
 }
 
-.cell[data-mine] {
+/* Faint hour rules, kept off the lanes so the bars stay unbroken. */
+tr[data-hour] .cell::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: color-mix(in srgb, var(--lacquer) 7%, transparent);
+}
+
+tbody tr:first-child .cell::before {
+  content: none;
+}
+
+/*
+ * Everyone who answered is free: a sheet of shu laid over the cell, bars and
+ * all, a run of them one rounded block. It sits on the cell's own box, not
+ * the bars' overlapping one, so stacked cells never double up at the seams.
+ */
+.cell[data-all-top] {
+  border-top-left-radius: 0.45em;
+  border-top-right-radius: 0.45em;
+}
+
+.cell[data-all-end] {
+  border-bottom-left-radius: 0.45em;
+  border-bottom-right-radius: 0.45em;
+}
+
+/* Outranks the hour-rule ::before rules above. */
+.table .cell[data-all]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  height: auto;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--shu) 55%, transparent);
+  pointer-events: none;
+}
+
+/* The day's name gets a dot when it holds such a time. */
+.day[data-all]::after {
+  content: "";
+  position: absolute;
+  bottom: 0.2em;
+  left: 50%;
+  translate: -50% 0;
+  width: 0.4em;
+  height: 0.4em;
+  border-radius: 50%;
+  background: var(--shu);
+}
+
+.lanes {
+  position: relative;
+  pointer-events: none;
+  z-index: 1;
+  display: flex;
+  gap: 3px;
+  /* Overlap the next row by a pixel so scaled rows leave no seams in a bar. */
+  height: calc(var(--row-h) + 1px);
+  margin-bottom: -1px;
+  padding: 0 4px;
+  box-sizing: border-box;
+}
+
+.lane {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/*
+ * Bars are softened toward the widget color rather than made see-through:
+ * rows overlap by a pixel, and real transparency would darken each seam.
+ */
+.lane[data-on] {
+  background: color-mix(in srgb, var(--c) 72%, var(--bg));
   box-shadow:
-    inset 0 0 0 1.5px var(--mine),
-    inset 0 0 0 2.5px color-mix(in srgb, var(--lacquer) 45%, transparent);
+    inset 1px 0 0 color-mix(in srgb, #fff 35%, transparent),
+    inset -1px 0 0 color-mix(in srgb, #000 8%, transparent);
 }
 
-.cell:hover {
-  outline: 1.5px solid var(--lacquer);
-  outline-offset: -1px;
+.lane[data-top] {
+  margin-top: 1.5px;
+  border-top-left-radius: 999px;
+  border-top-right-radius: 999px;
+}
+
+.lane[data-end] {
+  margin-bottom: 2.5px;
+  border-bottom-left-radius: 999px;
+  border-bottom-right-radius: 999px;
+}
+
+.cell:hover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0.25em;
+  box-shadow: inset 0 0 0 1.5px var(--lacquer);
+  pointer-events: none;
 }
 
 .cell[data-out] {
   background: transparent;
+  box-shadow: none;
   cursor: default;
+}
+
+.cell[data-out]::after,
+.cell[data-out]::before {
+  content: none;
 }
 
 .cell[data-readonly] {
