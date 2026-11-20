@@ -1,0 +1,108 @@
+/* An Ideas board inside the shared widget frame. */
+.ideas {
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+}
+
+.list {
+  display: grid;
+  align-content: start;
+  gap: 0.7em;
+}
+
+/* The idea sits centered against its vote box; a long one centers the box
+   against it instead. */
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5em;
+}
+
+/* The vote: an arrow over the count, filled once it's yours. */
+.up {
+  display: grid;
+  justify-items: center;
+  width: 2.1em;
+  padding: 0.15em 0 0.2em;
+  border: 0;
+  border-radius: 0.45em;
+  background: color-mix(in srgb, #fff 35%, transparent);
+  color: color-mix(in srgb, var(--lacquer) 75%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 120ms var(--ease-soft),
+    transform 120ms var(--ease-snap);
+}
+
+.up svg {
+  width: 0.9em;
+  height: 0.9em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.up:hover {
+  background: color-mix(in srgb, #fff 60%, transparent);
+  color: var(--lacquer);
+}
+
+.up:active {
+  transform: scale(0.94);
+}
+
+.up[aria-pressed="true"] {
+  background: var(--lacquer);
+  color: var(--bg);
+}
+
+/* The idea, with its author in a column of their own on the right: long
+   text wraps before reaching it. */
+.body {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+  min-width: 0;
+}
+
+.text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Keeps its width so the idea wraps instead; only a very long name gives
+   way, ending in "…". */
+.by {
+  flex: none;
+  max-width: 45%;
+  margin-left: auto;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: var(--font-mono);
+  font-size: 0.65em;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+}
+
+.by > :first-child {
+  flex: none;
+}
+
+.byName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .up {
+    transition: none;
+  }
+}

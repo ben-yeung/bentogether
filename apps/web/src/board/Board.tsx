@@ -1,11 +1,21 @@
 import { createMemo, createSignal, For, onSettled, Show } from "solid-js";
-import { GRID_COLS, clampRect, personTone, rowsUsed, settle, type Rect } from "@bentogether/shared";
+import { dynamic } from "@solidjs/web";
+import {
+  GRID_COLS,
+  clampFor,
+  personTone,
+  rowsUsed,
+  settle,
+  type Rect,
+  type WidgetKind,
+} from "@bentogether/shared";
 import { RemoteCursors, SelfTag } from "../cursors/Cursors";
 import { cursorCss, oklchToHex } from "../cursors/cursorImage";
 import type { PointerVariant } from "../cursors/Pointer";
 import { useMedia } from "../lib/media";
 import { isDark } from "../lib/theme";
-import { Note } from "./Note";
+import type { WidgetProps } from "./frame/WidgetFrame";
+import { WIDGET_BY_KIND } from "./widgets";
 import type { BoxSession } from "./session";
 import styles from "./Board.module.css";
 
@@ -22,12 +32,12 @@ const GUTTER_RATIO = 0.07;
 type LocalDrag = { id: string; mode: "move" | "resize"; rect: Rect; carry: { x: number; y: number } | null };
 
 /**
- * The box: a 12-column grid of compartments with everyone's cursors on top.
+ * The box: a 12-column grid of widgets with everyone's cursors on top.
  *
  * Layout while dragging is a pure function of state: the committed rects
  * plus whichever drag is in progress (yours first, else someone else's),
  * packed by the same `settle` the server runs. So you see the box make room
- * as you, or anyone, carries a compartment, before anything is committed.
+ * as you, or anyone, carries a widget, before anything is committed.
  */
 export function Board(props: { session: BoxSession; onError: (message: string) => void }) {
   const s = () => props.session;
@@ -146,9 +156,9 @@ export function Board(props: { session: BoxSession; onError: (message: string) =
     setFlipTag(p.x + 170 > width());
     const t = e.target as Element;
     setHover(
-      t.closest("textarea")
+      t.closest("textarea, input[type=text], input:not([type])")
         ? "ibeam"
-        : t.closest("button, [data-resize], [data-note]:not([data-readonly])")
+        : t.closest("button, label, [data-resize], [data-widget]:not([data-readonly])")
           ? "hand"
           : "dart",
     );
@@ -166,8 +176,9 @@ export function Board(props: { session: BoxSession; onError: (message: string) =
   function beginDrag(e: PointerEvent, id: string, mode: "move" | "resize") {
     if (e.button !== 0 || !s().canEdit()) return;
     const r0 = s().rect(id);
-    if (!r0) return;
-    const noteEl = (e.currentTarget as Element).closest<HTMLElement>("[data-note]");
+    const kind = s().kind(id);
+    if (!r0 || !kind) return;
+    const noteEl = (e.currentTarget as Element).closest<HTMLElement>("[data-widget]");
     const start = { x: e.clientX, y: e.clientY };
     const origin = { x: r0.x * pitch(), y: r0.y * pitch() };
     const p0 = boardPoint(e);
@@ -186,9 +197,9 @@ export function Board(props: { session: BoxSession; onError: (message: string) =
       let carry: LocalDrag["carry"] = null;
       if (mode === "move") {
         carry = { x: p.x - grab.x, y: p.y - grab.y };
-        rect = clampRect({ ...r0, x: carry.x / pitch(), y: carry.y / pitch() });
+        rect = clampFor(kind, { ...r0, x: carry.x / pitch(), y: carry.y / pitch() });
       } else {
-        rect = clampRect({ ...r0, w: (p.x - origin.x) / pitch(), h: (p.y - origin.y) / pitch() });
+        rect = clampFor(kind, { ...r0, w: (p.x - origin.x) / pitch(), h: (p.y - origin.y) / pitch() });
         rect = { ...rect, x: r0.x, y: r0.y };
       }
       setLocal({ id, mode, rect, carry });
@@ -209,7 +220,7 @@ export function Board(props: { session: BoxSession; onError: (message: string) =
       s().setPresence({ drag: null, action: null });
       if (!cancelled && !sameRect(last, r0)) {
         s()
-          .moveNote(id, last)
+          .move(id, last)
           .catch((err: Error) => props.onError(err.message));
       }
     };
@@ -261,18 +272,42 @@ export function Board(props: { session: BoxSession; onError: (message: string) =
               const sid = s().leases[id];
               return sid && sid !== s().server.sid ? (s().peers[sid]?.hue ?? null) : null;
             });
+            const shared: WidgetProps = {
+              id,
+              get session() {
+                return s();
+              },
+              get rect() {
+                return rect();
+              },
+              get mode() {
+                return mine() ? "lifted" : theirs() ? "remote-lifted" : "rest";
+              },
+              get carry() {
+                return mine()?.carry ?? null;
+              },
+              get ringHue() {
+                return theirs()?.hue ?? typistHue();
+              },
+              onPointerDown: (e, mode) => beginDrag(e, id, mode),
+              onError: props.onError,
+              get readOnly() {
+                return !s().canEdit();
+              },
+            };
+            // A widget's kind never changes: once known, it sticks. While
+            // the server confirms a new one its record moves from the local
+            // guess to the server's, and the kind can read as unknown for a
+            // moment; following that would re-mount the widget and drop
+            // whatever you'd started typing in it.
+            const kind = createMemo<WidgetKind | undefined>((prev) => prev ?? s().kind(id));
             return (
-              <Note
-                id={id}
-                session={s()}
-                rect={rect()}
-                mode={mine() ? "lifted" : theirs() ? "remote-lifted" : "rest"}
-                carry={mine()?.carry ?? null}
-                ringHue={theirs()?.hue ?? typistHue()}
-                onPointerDown={(e, mode) => beginDrag(e, id, mode)}
-                onError={props.onError}
-                readOnly={!s().canEdit()}
-              />
+              <Show when={kind()}>
+                {(k) => {
+                  const View = dynamic(() => WIDGET_BY_KIND[k()].View);
+                  return <View {...shared} />;
+                }}
+              </Show>
             );
           }}
         </For>
@@ -280,7 +315,7 @@ export function Board(props: { session: BoxSession; onError: (message: string) =
         <Show when={s().ids().length === 0}>
           <div class={styles.empty}>
             <p class={styles.emptyTitle}>An empty bento.</p>
-            <p>Add a note to fill the first compartment.</p>
+            <p>Add a widget to start filling it.</p>
           </div>
         </Show>
 

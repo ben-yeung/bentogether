@@ -1,0 +1,31 @@
+/* The picker tile for a Timer, drawn inside AddWidget's .preview cell. */
+.card {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.3rem;
+  height: 100%;
+  max-height: 11cqi;
+  aspect-ratio: 1.1;
+  padding: 0.45rem 0.35rem;
+  border-radius: 0.35rem;
+  background: var(--ing-ume);
+  color: var(--note-ink);
+  box-shadow: 0 6px 12px -8px color-mix(in srgb, #000 45%, transparent);
+  transform: rotate(2deg);
+}
+
+.time {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.play {
+  width: 1.2rem;
+  height: 0.55rem;
+  border-radius: 1rem;
+  background: var(--note-ink);
+}

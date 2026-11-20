@@ -14,7 +14,7 @@ here.
 ## Why Solid 2.0 for a multiplayer board
 
 A live board is a large graph of small values that change independently:
-the x of one compartment, the caret of one person, the hue of one cursor.
+the x of one widget, the caret of one person, the hue of one cursor.
 Solid's fine-grained signals update exactly the DOM node that depends on
 each value. A remote cursor moving 20 times a second re-renders one
 `transform`, not a component tree. 2.0 adds the missing pieces for the parts
@@ -37,7 +37,7 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
     is the confirmed state of the box.
   - `overlay`: a non-derived `createOptimisticStore`. Local writes (add,
     move, recolor, delete) go here inside an `action`, so they show at once.
-  - A compartment's view is `overlay.items[id] ?? server.items[id]` (minus
+  - A widget's view is `overlay.items[id] ?? server.items[id]` (minus
     `overlay.deleted`).
   - The action yields until the server acknowledges the op. When the
     transition settles, the overlay reverts on its own and the confirmed
@@ -63,7 +63,7 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
 - **Where:** socket message handling (`board/session.ts`)
 - **Primitive:** default microtask batching and `flush()`
 - **Why:** a burst of messages in one task (a peer joining, a move that
-  pushes several compartments) lands as one render. No `batch()` needed;
+  pushes several widgets) lands as one render. No `batch()` needed;
   it no longer exists.
 - **Tests:** tests wait a tick (or call `flush()`) before asserting, because
   reads lag writes in 2.0.
@@ -183,6 +183,72 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
 
 ---
 
-_Next up:_ `createProjection` for filtering compartments by type and value,
-`<Reveal>` for loading richer compartments in order, and `affects()` for a
+### 13. Rapid list edits stay out of actions
+
+- **Where:** `board/session.ts` (`changeItem`, `setListTitle`), `board/Todo.tsx`
+- **Primitives:** plain `createStore` for pending edits; no `action`
+- **Shape:** each To-do change is written to a `pending` store, sent, and
+  removed when the server answers (or rejects). A list's items are the
+  server's list with the pending changes replayed on top through the same
+  pure `applyTodoChange` the server runs. Replaying a change the server has
+  already applied is a no-op, so nothing shows twice in the gap between the
+  server's echo and the pending entry clearing.
+- **Finding:** the first version used one `action` per change, like notes.
+  Typing three items with Enter in quick succession (real keystrokes, about
+  10ms apart) flashed the page-level `<Loading>` fallback for ~20ms, which
+  unmounted the board and dropped focus from the "Add an item" field.
+  Script-driven submits at the same spacing never reproduced it, which fits
+  the runtime folding real input that arrives during an in-flight action
+  into one hold (`STACKED_HOLDS`), with the new rows mounting under it.
+  Reading the session once (untracked) did not help; leaving actions out
+  did. Note text already worked this way for the same reason: input that
+  comes in bursts goes straight to the socket.
+- **Rule we follow:** use `action` for one-off edits (add, move, recolor).
+  Edits people make in bursts (typing, ticking, adding list items) bypass
+  actions and keep their own pending state.
+- **Budgets:** +/− clicks follow the same rule. A budget change isn't safe
+  to replay twice (−20 counted twice is −40), so pending entries are keyed
+  by opId and dropped in the same synchronous handler that writes the
+  server's `applied` echo (or `rejected`). Both writes land in one microtask
+  batch, so no frame shows the change both confirmed and pending. To-do
+  changes use the same path.
+
+### 14. A new widget isn't drawn from an action's optimistic write
+
+- **Where:** `board/session.ts` (`add`, `Pending.created`), `board/AddWidget.tsx`
+- **Primitives:** plain `createStore`; no `action`, no optimistic store
+- **Shape:** a widget you add is written to the `pending` store under
+  its opId, sent, and dropped in the same handler that writes the server's
+  `applied` echo (the same-tick drop as budgets). Until then the board reads
+  it from there.
+- **Finding:** adding used an `action` writing the new widget into the
+  optimistic overlay. When the action settled, the board's row for it was
+  removed and built again about 10ms later (a MutationObserver showed the
+  `<article>` go and come back), so anything typed into a just-added list
+  before the server answered was lost. Latching the widget's kind did
+  not help; drawing the row from plain pending state did. The picker's own
+  `action` wrapper went too, for the same reason.
+- **Rule we follow:** anything people may start typing into straight away
+  is drawn from plain state, never from an action's optimistic layer.
+
+### 15. One change op for the newer widgets
+
+- **Where:** `shared/changes.ts` (`applyWidgetChange`), `session.ts`
+  (`change`, `live`), `room.ts` (`case "change"`)
+- **Shape:** Timer, Poll, Ideas, Asks, Free times and Calendar share one
+  `{type: "change"}` op whose payload is a valibot variant on `kind`, nested
+  with a variant on `do`. One pure reducer serves the server and the
+  client's replay of its own changes in flight, and `live(id, kind)` returns
+  the widget with those applied. Rows inside them (options, ideas,
+  people) are keyed by id through `createRows`, like To-do items.
+- **Timer:** nothing is sent while it runs. The server stores when it ends;
+  each screen ticks a signal every 200ms and reads the time left off the
+  server's clock (the welcome carries `now`). An effect writing the current
+  time into a signal tripped `EFFECT_RELAY_TEAR`; ticking a counter and
+  reading the clock in the derivation did not.
+
+---
+
+_Next up:_ `createProjection` for filtering widgets by type and value,
+`<Reveal>` for loading richer widgets in order, and `affects()` for a
 "saving" state on slow writes.

@@ -162,30 +162,6 @@
   min-height: 0;
 }
 
-.previewNote {
-  display: grid;
-  align-content: start;
-  gap: 8%;
-  height: 100%;
-  max-height: 11cqi;
-  aspect-ratio: 1;
-  padding: 14%;
-  border-radius: 0.35rem;
-  background: var(--ing-tamago);
-  box-shadow: 0 6px 12px -8px color-mix(in srgb, #000 45%, transparent);
-  transform: rotate(-3deg);
-}
-
-.previewNote span {
-  height: 0.2rem;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--note-ink) 25%, transparent);
-}
-
-.previewNote span:last-child {
-  width: 60%;
-}
-
 .optionText {
   display: grid;
   gap: 0.1rem;

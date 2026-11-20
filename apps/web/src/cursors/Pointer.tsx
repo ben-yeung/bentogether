@@ -8,7 +8,7 @@ export type PointerVariant = "dart" | "hand" | "grab" | "ibeam";
  * origin. Same family as the kumi-agents cursors:
  * - dart: moving around, the tip
  * - hand: over something clickable, the fingertip
- * - grab: carrying a compartment, the palm
+ * - grab: carrying a widget, the palm
  * - ibeam: typing, the center of the beam
  */
 export function Pointer(props: { variant: PointerVariant }) {

@@ -9,7 +9,16 @@ More detail: [Solid 2.0 notes](docs/SOLID-2.md) · [brand guide](docs/BRAND.md).
 ## Features
 
 - Live cursors, typing carets and drag previews for everyone in a bento
-- Sticky notes: add, drag, resize, recolor, set text size
+- Sticky notes: add, drag, resize, recolor, set text size; "- " starts a bullet list, and headings, **bold**, _italic_, `code` and [ ] boxes show formatted
+- To-do lists: a title line and items anyone can add, tick, edit, reorder and clear
+- Budgets: a shared total to spend from: type an amount and press − or +, tap the total to set it, and a history of who changed it
+- Timers: one countdown for everyone, counted on each screen from the server's clock
+- Polls: a question with options; everyone votes, viewers too
+- Ideas: pitch ideas and upvote the best (viewers can upvote)
+- Asks: what each teammate needs, with "new" counts kept on your own device
+- Free times: paint the half hours you're free over a week, shown in your own time zone
+- Calendar: month, week and day views; events in each viewer's own time
+- A starter bento: new bentos open with one of every widget, filled in as an example (switch it off when creating)
 - Share via link, with Can edit / Can view roles and optional password
 - Creator-only settings: live cursors, auto-pack
 - Light and dark themes

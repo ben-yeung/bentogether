@@ -11,7 +11,7 @@ async function newBox(page: Page, title: string, opts: { starter?: boolean; curs
   await page.goto("/");
   await page.getByLabel("Bento name").fill(title);
   await page.getByLabel("Your name").fill("Host");
-  if (!opts.starter) await page.getByRole("switch", { name: "Starter notes" }).click();
+  if (!opts.starter) await page.getByRole("switch", { name: "Starter bento" }).click();
   if (opts.cursors === false) await page.getByRole("switch", { name: "Live cursors" }).click();
   await page.getByRole("button", { name: "Create bento" }).click();
   await expect(page).toHaveURL(/\/b\/[a-z0-9]+$/);
@@ -79,10 +79,13 @@ test("cursors show up for everyone else with the person's name", async ({ browse
   await expect(b.locator("[data-visible]").getByText("Host", { exact: true })).toBeVisible();
 });
 
-test("starter notes and box options are applied", async ({ browser }) => {
+test("the starter bento and box options are applied", async ({ browser }) => {
   const [a, b] = await twoPeople(browser);
   await newBox(a, "Options", { starter: true, cursors: false });
-  await expect(a.locator("[data-note]")).toHaveCount(3);
+  // One of every widget, plus a second note with tips.
+  await expect(a.locator("[data-widget]")).toHaveCount(10);
+  for (const kind of ["note", "todo", "budget", "timer", "poll", "ideas", "asks", "freetimes", "calendar"])
+    await expect(a.locator(`[data-kind="${kind}"]`).first()).toBeVisible();
   await join(b, a.url(), "Guest");
   await expect(b.getByText("2 people viewing the bento")).toBeVisible();
 
@@ -110,7 +113,8 @@ test("people on different screen sizes see the same box, scaled", async ({ brows
   const b = await (await browser.newContext({ viewport: { width: 3200, height: 1800 } })).newPage();
   await newBox(a, "Scale", { starter: true });
   await join(b, a.url(), "Big screen");
-  await expect(b.locator("[data-note]")).toHaveCount(3);
+  // The starter bento has two notes (welcome and tips).
+  await expect(b.locator("[data-note]")).toHaveCount(2);
 
   async function picture(page: Page) {
     return page.evaluate(() => {
@@ -241,4 +245,126 @@ test("bento settings: the creator changes them live, guests can't", async ({ bro
 test("a missing bento says so", async ({ page }) => {
   await page.goto("/b/doesnotexist1");
   await expect(page.getByRole("heading", { name: "Nothing in this bento." })).toBeVisible();
+});
+
+/** The floating "+" opens the widget picker; pick a To-do. */
+async function addTodo(page: Page) {
+  await page.getByRole("button", { name: "Add to bento" }).click();
+  await page.getByRole("dialog", { name: "Add to bento" }).getByRole("button", { name: /To-do/ }).click();
+}
+
+test("a to-do list is shared live: title, items, ticks and reordering", async ({ browser }) => {
+  const [a, b] = await twoPeople(browser);
+  await newBox(a, "Groceries");
+  await join(b, a.url(), "Guest");
+  await expect(b.getByText("2 people viewing the bento")).toBeVisible();
+
+  await addTodo(a);
+  const listA = a.locator('[data-kind="todo"]');
+  const listB = b.locator('[data-kind="todo"]');
+  await expect(listB).toHaveCount(1);
+
+  await listA.getByLabel("List title").fill("Picnic");
+  await listA.getByLabel("List title").press("Enter");
+  await expect(listB.getByLabel("List title")).toHaveValue("Picnic");
+
+  for (const item of ["Rice", "Nori", "Tea"]) {
+    await listA.getByLabel("Add an item").fill(item);
+    await listA.getByLabel("Add an item").press("Enter");
+  }
+  await expect(listB.getByRole("checkbox")).toHaveCount(3);
+  // Adding in a quick burst keeps you in the field (no loading flash).
+  await expect(listA.getByLabel("Add an item")).toBeFocused();
+
+  // Both people tick different items at once; neither undoes the other.
+  await Promise.all([
+    listA.getByRole("checkbox", { name: "Rice" }).click(),
+    listB.getByRole("checkbox", { name: "Tea" }).click(),
+  ]);
+  for (const list of [listA, listB]) {
+    await expect(list.getByRole("checkbox", { name: "Rice" })).toBeChecked();
+    await expect(list.getByRole("checkbox", { name: "Tea" })).toBeChecked();
+    await expect(list.getByRole("checkbox", { name: "Nori" })).not.toBeChecked();
+  }
+
+  // Alt+Up moves an item; everyone sees the new order.
+  await listB.getByRole("checkbox", { name: "Tea" }).focus();
+  await b.keyboard.press("Alt+ArrowUp");
+  await expect(listA.locator("[data-item]")).toHaveText(["Rice", "Tea", "Nori"]);
+
+  // A newcomer gets the saved list.
+  const c = await (await browser.newContext()).newPage();
+  await join(c, a.url(), "Late");
+  await expect(c.locator('[data-kind="todo"] [data-item]')).toHaveText(["Rice", "Tea", "Nori"]);
+});
+
+test("a budget is shared live: set, subtract and add together, history and currency", async ({ browser }) => {
+  const [a, b] = await twoPeople(browser);
+  await newBox(a, "Trip");
+  await join(b, a.url(), "Guest");
+  await expect(b.getByText("2 people viewing the bento")).toBeVisible();
+
+  await a.getByRole("button", { name: "Add to bento" }).click();
+  await a
+    .getByRole("dialog", { name: "Add to bento" })
+    .getByRole("button", { name: /Budget/ })
+    .click();
+  const budgetA = a.locator('[data-kind="budget"]');
+  const budgetB = b.locator('[data-kind="budget"]');
+  await expect(budgetB).toHaveCount(1);
+
+  // Tap the total to set it.
+  await budgetA.getByRole("button", { name: /Set the amount/ }).click();
+  await budgetA.getByLabel(/New amount/).fill("500");
+  await budgetA.getByLabel(/New amount/).press("Enter");
+  await expect(budgetB.getByRole("button", { name: /Set the amount/ })).toHaveText("$500");
+
+  // Clicking elsewhere in the budget saves the new total and closes the field.
+  await budgetA.getByRole("button", { name: /Set the amount/ }).click();
+  await budgetA.getByLabel(/New amount/).fill("480");
+  await budgetA.getByText("left to spend", { exact: true }).click();
+  await expect(budgetA.getByLabel(/New amount/)).toHaveCount(0);
+  await expect(budgetB.getByRole("button", { name: /Set the amount/ })).toHaveText("$480");
+  // And with nothing changed, it just closes.
+  await budgetA.getByRole("button", { name: /Set the amount/ }).click();
+  await budgetA.getByText("left to spend", { exact: true }).click();
+  await expect(budgetA.getByLabel(/New amount/)).toHaveCount(0);
+  await budgetA.getByRole("button", { name: /Set the amount/ }).click();
+  await budgetA.getByLabel(/New amount/).fill("500");
+  await budgetA.getByLabel(/New amount/).press("Enter");
+  await expect(budgetB.getByRole("button", { name: /Set the amount/ })).toHaveText("$500");
+
+  // Both subtract at the same moment; both count.
+  const subtract = async (budget: typeof budgetA, amount: string) => {
+    await budget.getByLabel("Amount to add or subtract").fill(amount);
+    await budget.getByRole("button", { name: "Subtract", exact: true }).click();
+  };
+  await Promise.all([subtract(budgetA, "20"), subtract(budgetB, "20")]);
+  for (const budget of [budgetA, budgetB])
+    await expect(budget.getByRole("button", { name: /Set the amount/ })).toHaveText("$460");
+
+  // Add a typed amount; it stays in the field, so pressing again repeats it.
+  await budgetB.getByLabel("Amount to add or subtract").fill("12.50");
+  await budgetB.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(budgetA.getByRole("button", { name: /Set the amount/ })).toHaveText("$472.50");
+  await expect(budgetB.getByLabel("Amount to add or subtract")).toHaveValue("12.50");
+
+  // Enter subtracts.
+  await budgetB.getByLabel("Amount to add or subtract").press("Enter");
+  await expect(budgetA.getByRole("button", { name: /Set the amount/ })).toHaveText("$460");
+
+  // History is behind its own button, and only for you.
+  await budgetA.hover();
+  await budgetA.getByRole("button", { name: "Show history" }).click();
+  await expect(budgetA.getByRole("list", { name: "Recent changes" }).locator("li").first()).toContainText(
+    "Guest",
+  );
+  await expect(budgetB.getByRole("list", { name: "Recent changes" })).toHaveCount(0);
+  await budgetA.getByRole("button", { name: "Hide history" }).click();
+
+  // Switching currency keeps the number.
+  await budgetA.hover();
+  await budgetA.getByLabel("Currency").selectOption("EUR");
+  await expect(budgetB.getByRole("button", { name: /Set the amount/ })).toContainText("460");
+  await expect(budgetB.getByRole("button", { name: /Set the amount/ })).toContainText("€");
 });

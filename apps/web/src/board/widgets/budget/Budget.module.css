@@ -1,0 +1,356 @@
+/* A Budget inside the shared widget frame (WidgetFrame.module.css). */
+.budget {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  row-gap: calc(var(--u) * 4);
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 16);
+  line-height: 1.35;
+}
+
+/* --------------------------------------------------------------- header */
+
+/* The title, clear of delete in the corner. */
+.head {
+  display: grid;
+  /* A little more air between the title and what's under it. */
+  margin-bottom: calc(var(--u) * 5);
+
+  padding-right: 1.5em;
+}
+
+/* Inputs read as plain text until you're in them. */
+.title,
+.amountInput,
+.adjustInput {
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.title {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--lacquer) 75%, transparent);
+  text-overflow: ellipsis;
+}
+
+/* Only as wide as the title itself, so the rest of the line stays a place
+   to grab the widget. `size` (set in the markup) covers browsers without
+   field-sizing. */
+.title {
+  field-sizing: content;
+  justify-self: start;
+  width: auto;
+  min-width: 2ch;
+  max-width: 100%;
+}
+
+.title::placeholder,
+.amountInput::placeholder,
+.adjustInput::placeholder {
+  color: color-mix(in srgb, var(--lacquer) 40%, transparent);
+}
+
+.title:read-only {
+  cursor: inherit;
+}
+
+.historyBtn,
+.nudge {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 0.3em;
+  background: transparent;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+  transition:
+    background-color 120ms var(--ease-soft),
+    color 120ms var(--ease-soft),
+    transform 120ms var(--ease-snap);
+}
+
+.historyBtn {
+  width: 1.6em;
+  height: 1.6em;
+  flex: none;
+}
+
+.historyBtn:hover,
+.nudge:hover,
+.historyBtn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--lacquer) 9%, transparent);
+  color: var(--lacquer);
+}
+
+.historyBtn svg,
+.nudge svg {
+  width: 0.95em;
+  height: 0.95em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ----------------------------------------------------------- main view */
+
+/* The total across the full width, then the − amount + row under it. */
+.stage {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  row-gap: 0.5em;
+  min-height: 0;
+}
+
+.adjust {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35em;
+  margin: 0;
+}
+
+.nudge {
+  width: 1.9em;
+  height: 1.9em;
+  border-radius: 0.4em;
+  background: color-mix(in srgb, #fff 35%, transparent);
+}
+
+.nudge svg {
+  width: 1.1em;
+  height: 1.1em;
+  stroke-width: 1.6;
+}
+
+.nudge:hover {
+  background: color-mix(in srgb, #fff 60%, transparent);
+}
+
+.nudge:active {
+  transform: scale(0.94);
+}
+
+.adjustInput {
+  height: 1.9em;
+  padding: 0 0.5em;
+  border-radius: 0.4em;
+  background: color-mix(in srgb, #fff 35%, transparent);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  transition: background-color 120ms var(--ease-soft);
+}
+
+.adjustInput:focus {
+  background: color-mix(in srgb, #fff 60%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--lacquer) 35%, transparent);
+}
+
+/*
+ * The total fills the width it has: the font shrinks for longer amounts
+ * (--chars is the text's length), capped so short ones don't get huge.
+ * Measured against the widget's width, so every viewer sees the same.
+ */
+.total {
+  container: total / size;
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The amount with its caption under it. */
+.line {
+  display: grid;
+  justify-items: center;
+  min-width: 0;
+}
+
+.amount {
+  max-width: 100%;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  /* Height too: room for the caption under it. */
+  font-size: min(calc(var(--u) * 88), calc(100cqi / (var(--chars) * 0.62)), 68cqb);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--lacquer);
+}
+
+/*
+ * Wide and short (a budget stretched sideways): the caption moves to the
+ * right of the amount, so the amount can use the full height.
+ */
+@container total (min-aspect-ratio: 5 / 2) {
+  .line {
+    grid-auto-flow: column;
+    align-items: center;
+    justify-content: center;
+    column-gap: 0.6em;
+  }
+
+  .line .amount {
+    font-size: min(calc(var(--u) * 88), calc(78cqi / (var(--chars) * 0.62)), 90cqb);
+  }
+
+  .line .caption {
+    margin-top: 0;
+    line-height: 1.25;
+  }
+
+  /* "left" over "to spend", so the caption is narrow and the amount stays near the middle. */
+  .line .caption > span {
+    display: block;
+  }
+}
+
+.amountBtn {
+  padding: 0 0.08em;
+  border: 0;
+  border-radius: 0.1em;
+  background: transparent;
+  cursor: text;
+  transition: background-color 120ms var(--ease-soft);
+}
+
+.amountBtn:hover {
+  background: color-mix(in srgb, var(--lacquer) 6%, transparent);
+}
+
+.amountInput {
+  text-align: center;
+  border-bottom: 2px solid color-mix(in srgb, var(--lacquer) 30%, transparent);
+}
+
+.caption {
+  margin-top: 0.3em;
+  font-family: var(--font-mono);
+  font-size: 0.7em;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+}
+
+.stage[data-over] .caption,
+.historyTotal[data-over] .caption {
+  color: var(--lacquer);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------- history */
+
+.history {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  row-gap: 0.4em;
+  min-height: 0;
+}
+
+.historyTotal {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+}
+
+.historyAmount {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5em;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.log {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  scrollbar-width: none;
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+  color: color-mix(in srgb, var(--lacquer) 70%, transparent);
+  /* Older changes fade out at the bottom rather than being cut mid-line. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.4em), transparent);
+}
+
+.log::-webkit-scrollbar {
+  display: none;
+}
+
+.logEntry {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.15em 0;
+  white-space: nowrap;
+}
+
+/* A dot in the person's color, then their name. */
+.who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.who::before {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: 0.4em;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.what {
+  margin-left: auto;
+  flex: none;
+  color: var(--lacquer);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  margin: 0;
+  font-size: 0.8em;
+  color: color-mix(in srgb, var(--lacquer) 50%, transparent);
+}
+
+/* --------------------------------------------------------------- footer */
+
+.currency {
+  height: 1.6em;
+  padding: 0 0.3em;
+  border: 0;
+  border-radius: 0.3em;
+  background: transparent;
+  color: color-mix(in srgb, var(--lacquer) 70%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+}
+
+.currency:hover {
+  background: color-mix(in srgb, var(--lacquer) 8%, transparent);
+  color: var(--lacquer);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .amountBtn,
+  .adjustInput,
+  .historyBtn,
+  .nudge {
+    transition: none;
+  }
+}

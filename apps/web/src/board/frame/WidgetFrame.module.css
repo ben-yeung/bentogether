@@ -1,0 +1,231 @@
+/*
+ * The frame every widget shares. Everything inside is sized from the
+ * cell (--u), like note text: see GUTTER_RATIO in Board.tsx.
+ */
+.frame {
+  --bg: var(--ing-tamago);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--w) * var(--pitch) - var(--gutter));
+  height: calc(var(--h) * var(--pitch) - var(--gutter));
+  transform: translate(calc(var(--x) * var(--pitch)), calc(var(--y) * var(--pitch)));
+  --u: calc(var(--pitch) / 100);
+  /* One even inset on every side; the toolbar sits at the same inset. */
+  padding: calc(var(--u) * 10);
+  /* Widgets stay light pastels in dark mode (muted, not dark), so
+     everything inside them uses dark ink: re-point the ink tokens here. */
+  --lacquer: var(--note-ink);
+  --lacquer-soft: color-mix(in srgb, var(--note-ink) 72%, transparent);
+  --lacquer-faint: color-mix(in srgb, var(--note-ink) 50%, transparent);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--lacquer);
+  border: 1px solid color-mix(in srgb, var(--lacquer) 9%, transparent);
+  outline: 0 solid transparent;
+  touch-action: none;
+  user-select: none;
+  transition:
+    transform var(--dur-snap) var(--ease-snap),
+    width var(--dur-snap) var(--ease-snap),
+    height var(--dur-snap) var(--ease-snap),
+    background-color 240ms var(--ease-soft),
+    box-shadow 160ms var(--ease-soft),
+    outline-color 160ms var(--ease-soft);
+}
+
+.frame[data-color="tamago"] {
+  --bg: var(--ing-tamago);
+}
+.frame[data-color="sake"] {
+  --bg: var(--ing-sake);
+}
+.frame[data-color="edamame"] {
+  --bg: var(--ing-edamame);
+}
+.frame[data-color="ume"] {
+  --bg: var(--ing-ume);
+}
+.frame[data-color="nori"] {
+  --bg: var(--ing-nori);
+}
+.frame[data-color="shiso"] {
+  --bg: var(--ing-shiso);
+}
+
+.frame:focus-visible {
+  outline: 2px solid var(--shu);
+  outline-offset: 2px;
+}
+
+/* You're carrying it: it follows the pointer freely, lifted. */
+.frame[data-carried] {
+  transform: translate(var(--carry-x), var(--carry-y)) scale(1.02);
+  box-shadow: var(--lift-shadow);
+  z-index: 30;
+  transition:
+    width var(--dur-snap) var(--ease-snap),
+    height var(--dur-snap) var(--ease-snap),
+    box-shadow 160ms var(--ease-soft);
+}
+
+.frame[data-mode="lifted"]:not([data-carried]) {
+  box-shadow: var(--lift-shadow);
+  z-index: 30;
+}
+
+/* Someone else is carrying it or working in it: ring in their color. */
+.frame[data-ringed] {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+  z-index: 20;
+}
+
+.frame[data-mode="remote-lifted"] {
+  box-shadow: var(--lift-shadow);
+}
+
+.frame[data-editing] {
+  user-select: text;
+  outline: 2px solid color-mix(in srgb, var(--lacquer) 35%, transparent);
+  outline-offset: 1px;
+}
+
+/* ---------------------------------------------------------------- tools */
+
+/*
+ * The toolbar lives in the bottom row, right of the byline and left of the
+ * resize grip, so it never covers the content. It shows on hover or
+ * keyboard focus.
+ */
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  height: 1.7em;
+  margin-left: auto;
+  flex: none;
+  /* Anchors the folded palette. */
+  position: relative;
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 14);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms var(--ease-soft);
+}
+
+.frame:hover .tools,
+.frame:focus-within .tools,
+.tools.toolsPinned {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Delete sits alone in the top-right corner, shown on hover/focus, on a
+   small disc of the widget's own color so it reads over content. */
+.remove {
+  position: absolute;
+  top: calc(var(--u) * 5);
+  right: calc(var(--u) * 5);
+  z-index: 2;
+  width: calc(var(--u) * 22);
+  height: calc(var(--u) * 22);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  font-size: calc(var(--u) * 14);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 140ms var(--ease-soft),
+    background-color 140ms var(--ease-soft);
+}
+
+.frame:hover .remove,
+.frame:focus-within .remove {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.remove svg {
+  width: 0.85em;
+  height: 0.85em;
+}
+
+/* ----------------------------------------------------------------- meta */
+
+.meta {
+  font-family: var(--font-mono);
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: calc(var(--u) * 10);
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-height: 2.2em;
+  /* The toolbar shares this row; let it show in full. */
+  overflow: visible;
+  /* Leave room for the resize grip. */
+  padding-right: 2.2em;
+}
+
+.typing {
+  color: var(--lacquer);
+}
+
+.typing::before {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  margin-right: 0.4em;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.byline {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The resize grip: hidden at rest, revealed on hover or keyboard focus.
+   Long strokes and a generous hit area reaching into the corner. */
+.resize {
+  position: absolute;
+  right: calc(var(--u) * 2);
+  bottom: calc(var(--u) * 2);
+  width: calc(var(--u) * 24);
+  height: calc(var(--u) * 24);
+  padding: calc(var(--u) * 3);
+  border-radius: 0 0 var(--radius) 0;
+  cursor: nwse-resize;
+  color: color-mix(in srgb, var(--lacquer) 45%, transparent);
+  opacity: 0;
+  transition: opacity 140ms var(--ease-soft);
+}
+
+.frame:hover .resize,
+.frame:focus-within .resize {
+  opacity: 1;
+}
+
+.resize:hover {
+  color: var(--lacquer);
+}
+
+/* Two hairline strokes, thin at any size. */
+.resize svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.resize path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}

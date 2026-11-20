@@ -1,0 +1,52 @@
+/* The picker tile for this kind, drawn inside AddWidget's .preview cell. */
+/* A small checklist: two rows ticked, one to go. */
+.card {
+  display: grid;
+  grid-template-columns: 100%;
+  align-content: start;
+  gap: 12%;
+  height: 100%;
+  max-height: 11cqi;
+  aspect-ratio: 0.85;
+  /* Percentages here would follow the tile, not the card. */
+  padding: 0.55rem 0.45rem;
+  border-radius: 0.35rem;
+  background: var(--ing-edamame);
+  box-shadow: 0 6px 12px -8px color-mix(in srgb, #000 45%, transparent);
+  transform: rotate(2deg);
+}
+
+.card span {
+  display: grid;
+  grid-template-columns: 0.55rem 1fr;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+/* The box, then the line. */
+.card span::before {
+  content: "";
+  aspect-ratio: 1;
+  border-radius: 2px;
+  border: 1.5px solid color-mix(in srgb, var(--note-ink) 45%, transparent);
+}
+
+.card span::after {
+  content: "";
+  height: 0.2rem;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--note-ink) 25%, transparent);
+}
+
+.card span[data-done]::before {
+  background: color-mix(in srgb, var(--note-ink) 70%, transparent);
+  border-color: transparent;
+}
+
+.card span[data-done]::after {
+  background: color-mix(in srgb, var(--note-ink) 14%, transparent);
+}
+
+.card span:last-child::after {
+  width: 70%;
+}

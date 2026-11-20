@@ -1,4 +1,4 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { NAME_MAX } from "@bentogether/shared";
 import { personVars } from "../lib/identity";
 import { setThemePref, themePref, type ThemePref } from "../lib/theme";
@@ -23,6 +23,8 @@ export function SettingsDialog(props: {
   onClose: () => void;
   session: BoxSession;
   onRename: (name: string) => void;
+  /** Asks to clear the bento; the confirmation is its own dialog. */
+  onClear: () => void;
   toast: (message: string, tone?: "info" | "error") => void;
 }) {
   const s = () => props.session;
@@ -107,6 +109,78 @@ export function SettingsDialog(props: {
             </For>
           </div>
         </section>
+        <section class={styles.danger} aria-label="Clear bento">
+          <button
+            type="button"
+            class={["btn", styles.dangerBtn]}
+            disabled={!s().isOwner() || s().ids().length === 0}
+            onClick={() => props.onClear()}
+          >
+            Clear Bento
+          </button>
+          <p class={styles.note}>
+            {!s().isOwner()
+              ? "Only the creator can clear this bento."
+              : s().ids().length === 0
+                ? "This bento is already empty."
+                : "Removes every widget, for everyone."}
+          </p>
+        </section>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * The step before clearing: says what will go and that it can't be undone.
+ * "Keep it" has focus, so Enter doesn't clear by accident.
+ */
+export function ClearBentoDialog(props: {
+  open: boolean;
+  onClose: () => void;
+  session: BoxSession;
+  toast: (message: string, tone?: "info" | "error") => void;
+}) {
+  const s = () => props.session;
+  const [busy, setBusy] = createSignal(false);
+  const count = () => s().ids().length;
+
+  async function clear() {
+    setBusy(true);
+    try {
+      await s().clearBento();
+      props.toast("Bento cleared.");
+      props.onClose();
+    } catch (err) {
+      props.toast((err as Error).message, "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={props.open} onClose={props.onClose} label="Clear this bento?" size="sm">
+      <div class={styles.settings}>
+        <header class={styles.head}>
+          <h2 class={styles.title}>Clear this bento?</h2>
+        </header>
+        <p class={styles.confirmText}>
+          This removes all {count()} {count() === 1 ? "widget" : "widgets"} and everything in them, for
+          everyone here. It can't be undone.
+        </p>
+        <div class={styles.actions}>
+          <button type="button" class="btn btn-ghost" autofocus onClick={() => props.onClose()}>
+            Keep it
+          </button>
+          <button
+            type="button"
+            class={["btn", styles.confirmBtn]}
+            disabled={busy()}
+            onClick={() => void clear()}
+          >
+            {busy() ? "Clearing…" : "Clear Bento"}
+          </button>
+        </div>
       </div>
     </Dialog>
   );

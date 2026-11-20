@@ -1,0 +1,24 @@
+/* The picker tile for a Poll, drawn inside AddWidget's .preview cell. */
+.card {
+  display: grid;
+  align-content: center;
+  gap: 0.28rem;
+  height: 100%;
+  max-height: 11cqi;
+  aspect-ratio: 1.1;
+  padding: 0.45rem 0.45rem;
+  border-radius: 0.35rem;
+  background: var(--ing-nori);
+  box-shadow: 0 6px 12px -8px color-mix(in srgb, #000 45%, transparent);
+  transform: rotate(-1.5deg);
+}
+
+.bar {
+  height: 0.38rem;
+  border-radius: 0.2rem;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--note-ink) 55%, transparent) var(--w),
+    color-mix(in srgb, #fff 55%, transparent) var(--w)
+  );
+}

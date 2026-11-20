@@ -1,0 +1,167 @@
+import { Show } from "solid-js";
+import type { JSX } from "@solidjs/web";
+import type { NoteColor, Rect, WidgetKind } from "@bentogether/shared";
+import { personColor } from "../../lib/identity";
+import type { BoxSession } from "../session";
+import styles from "./WidgetFrame.module.css";
+
+export type WidgetMode = "rest" | "lifted" | "remote-lifted";
+
+/** Pointer presses on these never start a drag or a click-to-open. */
+export const INTERACTIVE =
+  "button, textarea, input, select, label, a, [data-resize], [data-palette], [data-nodrag]";
+
+/** What the board hands every widget, whatever its kind. */
+export type WidgetProps = {
+  id: string;
+  session: BoxSession;
+  rect: Rect;
+  mode: WidgetMode;
+  /** Pixel offset while you carry it; null when it sits in its cell. */
+  carry: { x: number; y: number } | null;
+  /** Color of whoever else is carrying it or working in it. */
+  ringHue: number | null;
+  onPointerDown: (e: PointerEvent, mode: "move" | "resize") => void;
+  onError: (message: string) => void;
+  /** Viewers see widgets but can't move, resize or delete them. */
+  readOnly: boolean;
+};
+
+/**
+ * The frame every widget shares: its cell on the grid, the lift and
+ * colored ring while someone carries it, delete in the corner, the resize
+ * grip, and keyboard moves (arrows), resizes (Shift+arrows) and delete.
+ * What goes inside is up to the kind.
+ */
+export function WidgetFrame(
+  props: WidgetProps & {
+    kind: WidgetKind;
+    color: NoteColor;
+    label: string;
+    /** "Delete note", "Delete list". */
+    deleteLabel: string;
+    editing?: boolean;
+    /** Extra classes: one, or a list. */
+    class?: string | readonly (string | undefined)[];
+    style?: JSX.CSSProperties;
+    /** Click on the body, or Enter on the frame. */
+    onActivate?: () => void;
+    /** Runs first; return true when the kind handled the key itself. */
+    onKey?: (e: KeyboardEvent & { currentTarget: HTMLElement }) => boolean;
+    children: JSX.Element;
+  },
+) {
+  const s = () => props.session;
+  const fail = (err: Error) => props.onError(err.message);
+
+  function onKeyDown(e: KeyboardEvent & { currentTarget: HTMLElement }) {
+    if (props.readOnly) return;
+    if (props.onKey?.(e)) return;
+    if (e.target !== e.currentTarget) return;
+    const r = props.rect;
+    const nudge = (dx: number, dy: number, resize: boolean) => {
+      e.preventDefault();
+      const to = resize ? { ...r, w: r.w + dx, h: r.h + dy } : { ...r, x: r.x + dx, y: r.y + dy };
+      s().move(props.id, to).catch(fail);
+    };
+    switch (e.key) {
+      case "Enter":
+        if (!props.onActivate) return;
+        e.preventDefault();
+        props.onActivate();
+        return;
+      case "ArrowLeft":
+        return nudge(-1, 0, e.shiftKey);
+      case "ArrowRight":
+        return nudge(1, 0, e.shiftKey);
+      case "ArrowUp":
+        return nudge(0, -1, e.shiftKey);
+      case "ArrowDown":
+        return nudge(0, 1, e.shiftKey);
+      case "Delete":
+      case "Backspace":
+        e.preventDefault();
+        s().remove(props.id).catch(fail);
+        return;
+    }
+  }
+
+  return (
+    <article
+      data-widget={props.id}
+      data-kind={props.kind}
+      // Notes keep their own hook, used by tests and the cursor.
+      data-note={props.kind === "note" ? props.id : undefined}
+      class={[styles.frame, ...(Array.isArray(props.class) ? props.class : [props.class])]}
+      data-color={props.color}
+      data-mode={props.mode}
+      data-editing={props.editing}
+      data-carried={props.carry !== null}
+      data-ringed={props.ringHue !== null}
+      data-readonly={props.readOnly}
+      tabindex="0"
+      aria-label={props.label}
+      style={{
+        ...props.style,
+        "--x": props.rect.x,
+        "--y": props.rect.y,
+        "--w": props.rect.w,
+        "--h": props.rect.h,
+        "--carry-x": props.carry ? `${props.carry.x}px` : undefined,
+        "--carry-y": props.carry ? `${props.carry.y}px` : undefined,
+        "--ring": props.ringHue !== null ? personColor(props.ringHue) : undefined,
+      }}
+      onPointerDown={(e) => {
+        if (props.readOnly || props.editing || (e.target as Element).closest(INTERACTIVE)) return;
+        props.onPointerDown(e, "move");
+      }}
+      onClick={(e) => {
+        if (!props.onActivate || (e.target as Element).closest(INTERACTIVE)) return;
+        if (e.detail > 0 && e.currentTarget.dataset.dragged === "true") return;
+        props.onActivate();
+      }}
+      onKeyDown={onKeyDown}
+    >
+      <Show when={!props.readOnly}>
+        <button
+          type="button"
+          class={["icon-btn", styles.remove]}
+          aria-label={props.deleteLabel}
+          onClick={() => s().remove(props.id).catch(fail)}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+        </button>
+      </Show>
+
+      {props.children}
+
+      <Show when={!props.readOnly}>
+        <div
+          class={styles.resize}
+          data-resize
+          aria-hidden="true"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            props.onPointerDown(e, "resize");
+          }}
+        >
+          <svg viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M9.5 1.5 1.5 9.5M9.5 5.5 5.5 9.5" />
+          </svg>
+        </div>
+      </Show>
+    </article>
+  );
+}
+
+/** Class names for the parts kinds share: the footer row, byline and hover tools. */
+export const frameParts = {
+  meta: styles.meta,
+  byline: styles.byline,
+  typing: styles.typing,
+  tools: styles.tools,
+  /** Keeps the tools showing without hover. */
+  toolsPinned: styles.toolsPinned,
+};

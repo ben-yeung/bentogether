@@ -1,0 +1,276 @@
+/* A To-do inside the shared widget frame (WidgetFrame.module.css). */
+.todo {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  row-gap: calc(var(--u) * 4);
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 16);
+  line-height: 1.35;
+}
+
+/* Inputs read as plain text until you're in them. */
+.title,
+.edit,
+.addInput {
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.title {
+  /* A little more air between the title and what's under it. */
+  margin-bottom: calc(var(--u) * 5);
+  /* Clear of the delete button in the corner. */
+  padding-right: 1.6em;
+  font-family: var(--font-display);
+  font-size: 1.15em;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+}
+
+/* Only as wide as the title itself, so the rest of the line stays a place
+   to grab the widget. `size` (set in the markup) covers browsers without
+   field-sizing. */
+.title {
+  field-sizing: content;
+  justify-self: start;
+  width: auto;
+  min-width: 2ch;
+  max-width: calc(100% - 1.6em);
+  padding-right: 0;
+}
+
+.title::placeholder,
+.addInput::placeholder {
+  color: color-mix(in srgb, var(--lacquer) 45%, transparent);
+}
+
+.title:read-only {
+  cursor: inherit;
+}
+
+/* ---------------------------------------------------------------- items */
+
+.list {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.list::-webkit-scrollbar {
+  display: none;
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 0.45em;
+  padding: 0.2em 0;
+}
+
+/* Editors get a grip column on the left for reordering. */
+.row:has(.grip) {
+  grid-template-columns: 0.5em auto 1fr auto;
+  gap: 0.35em;
+}
+
+.grip {
+  width: 0.5em;
+  height: 0.9em;
+  margin-top: 0.22em;
+  cursor: grab;
+  color: color-mix(in srgb, var(--lacquer) 40%, transparent);
+  opacity: 0;
+  transition: opacity 120ms var(--ease-soft);
+}
+
+.grip svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+
+.row:hover .grip,
+.row[data-dragging] .grip {
+  opacity: 1;
+}
+
+.row[data-dragging] {
+  opacity: 0.45;
+}
+
+/* Where a dragged row will land: a line above this one. */
+.row[data-drop-before]::before,
+.dropEnd {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--lacquer);
+}
+
+.dropEnd {
+  position: relative;
+  display: block;
+}
+
+.check {
+  display: grid;
+  place-items: center;
+  width: 1.05em;
+  height: 1.05em;
+  margin-top: 0.15em;
+  padding: 0;
+  border-radius: 0.3em;
+  border: 1.5px solid color-mix(in srgb, var(--lacquer) 50%, transparent);
+  background: color-mix(in srgb, #fff 40%, transparent);
+  color: var(--bg);
+  transition:
+    background-color 120ms var(--ease-soft),
+    border-color 120ms var(--ease-soft);
+}
+
+.check svg {
+  width: 0.75em;
+  height: 0.75em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+}
+
+.check[aria-checked="true"] {
+  background: var(--lacquer);
+  border-color: var(--lacquer);
+}
+
+.check[aria-checked="true"] svg {
+  opacity: 1;
+}
+
+.check[aria-disabled="true"] {
+  cursor: inherit;
+}
+
+.text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+.row[data-done] .text {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--lacquer) 45%, transparent);
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+}
+
+.edit {
+  border-bottom: 1px solid color-mix(in srgb, var(--lacquer) 35%, transparent);
+}
+
+.removeItem {
+  display: grid;
+  place-items: center;
+  width: 1.1em;
+  height: 1.1em;
+  margin-top: 0.12em;
+  padding: 0;
+  border: 0;
+  /* Same soft square as the other small controls (text size, Clear done). */
+  border-radius: 0.3em;
+  background: transparent;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+  opacity: 0;
+  transition: opacity 120ms var(--ease-soft);
+}
+
+.removeItem svg {
+  width: 0.8em;
+  height: 0.8em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.row:hover .removeItem,
+.removeItem:focus-visible {
+  opacity: 1;
+}
+
+.removeItem:hover {
+  background: color-mix(in srgb, var(--lacquer) 10%, transparent);
+  color: var(--lacquer);
+}
+
+.empty {
+  color: color-mix(in srgb, var(--lacquer) 50%, transparent);
+}
+
+/* ------------------------------------------------------------------ add */
+
+.add {
+  display: grid;
+  grid-template-columns: 1.05em 1fr;
+  /* Lines the + up with the checkboxes, past the grip column. */
+  padding-left: 0.85em;
+  align-items: center;
+  gap: 0.45em;
+  padding-top: 0.25em;
+  border-top: 1px dashed color-mix(in srgb, var(--lacquer) 20%, transparent);
+}
+
+.plus {
+  text-align: center;
+  color: color-mix(in srgb, var(--lacquer) 50%, transparent);
+}
+
+/* --------------------------------------------------------------- footer */
+
+.count {
+  flex: none;
+}
+
+.clear {
+  height: 1.6em;
+  padding: 0 0.5em;
+  border: 0;
+  border-radius: 0.4em;
+  background: transparent;
+  color: color-mix(in srgb, var(--lacquer) 70%, transparent);
+  font-size: 0.8em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.clear:hover {
+  background: color-mix(in srgb, var(--lacquer) 8%, transparent);
+  color: var(--lacquer);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grip,
+  .check,
+  .removeItem {
+    transition: none;
+  }
+}

@@ -1,6 +1,6 @@
-/** "5 notes" (who's there is shown as color dots beside it). */
-export function notesLabel(compartments: number): string {
-  return `${compartments} ${compartments === 1 ? "note" : "notes"}`;
+/** "5 widgets" (who's there is shown as color dots beside it). */
+export function widgetsLabel(count: number): string {
+  return `${count} ${count === 1 ? "widget" : "widgets"}`;
 }
 
 /**

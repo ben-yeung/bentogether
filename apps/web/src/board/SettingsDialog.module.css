@@ -107,3 +107,41 @@
   height: 2.4rem;
   font-weight: 550;
 }
+
+/* Clearing sits apart at the bottom, in the danger color. */
+.danger {
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--bamboo);
+}
+
+.dangerBtn {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: transparent;
+  color: var(--danger);
+}
+
+.dangerBtn:not([disabled]):hover {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+.confirmText {
+  margin: 0;
+  line-height: 1.45;
+  color: var(--lacquer-soft);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.confirmBtn {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--shu-ink);
+}

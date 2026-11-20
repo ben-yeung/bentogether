@@ -1,19 +1,11 @@
-import { action, createOptimistic, createSignal, For } from "solid-js";
-import { NOTE_COLORS } from "@bentogether/shared";
+import { createSignal, For } from "solid-js";
+import { NOTE_COLORS, type WidgetKind } from "@bentogether/shared";
 import { Dialog } from "../ui/Dialog";
 import type { BoxSession } from "./session";
+import { WIDGET_BY_KIND, WIDGETS } from "./widgets";
 import styles from "./AddWidget.module.css";
 
-/** Widgets you can add. Sticky notes today; richer compartments join this list. */
-const WIDGETS = [
-  {
-    kind: "note",
-    name: "Sticky Note",
-    blurb: "Live, shared text.",
-  },
-] as const;
-
-/** The picker is a 3x3 box; compartments without a widget stay empty. */
+/** The picker is a 3x3 box; cells without a widget stay empty. */
 const CELLS = 9;
 
 /**
@@ -26,19 +18,20 @@ export function AddWidget(props: {
 }) {
   const s = () => props.session;
   const [open, setOpen] = createSignal(false);
-  // "Adding…" is an optimistic flag co-written by the action (2.0 pattern).
-  const [adding, setAdding] = createOptimistic(false);
+  /** True until the server confirms the one you just added. */
+  const [adding, setAdding] = createSignal(false);
 
-  const addNote = action(function* () {
+  // A plain call, not an action: the new widget must stay mounted when
+  // the server confirms it (see Pending.created in session.ts).
+  function add(kind: WidgetKind) {
     setAdding(true);
     setOpen(false);
-    const color = NOTE_COLORS[s().ids().length % NOTE_COLORS.length]!;
-    try {
-      yield s().addNote(color);
-    } catch (err) {
-      props.toast((err as Error).message, "error");
-    }
-  });
+    const color = WIDGET_BY_KIND[kind].firstColor ?? NOTE_COLORS[s().ids().length % NOTE_COLORS.length]!;
+    s()
+      .add(kind, color)
+      .catch((err: Error) => props.toast(err.message, "error"))
+      .finally(() => setAdding(false));
+  }
 
   return (
     <>
@@ -66,14 +59,16 @@ export function AddWidget(props: {
         <h2 class={styles.title}>Add to bento</h2>
         <ul class={styles.tray}>
           <For each={WIDGETS}>
-            {(w) => (
+            {(w, i) => (
               <li>
-                <button type="button" class={styles.option} onClick={() => void addNote()} autofocus>
+                <button
+                  type="button"
+                  class={styles.option}
+                  onClick={() => void add(w.kind)}
+                  autofocus={i() === 0}
+                >
                   <span class={styles.preview} data-kind={w.kind} aria-hidden="true">
-                    <span class={styles.previewNote}>
-                      <span />
-                      <span />
-                    </span>
+                    <w.Preview />
                   </span>
                   <span class={styles.optionText}>
                     <span class={styles.optionName}>{w.name}</span>

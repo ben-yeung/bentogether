@@ -11,13 +11,13 @@ function byPosition(a: Placed, b: Placed) {
 }
 
 /**
- * Packs compartments the way food settles into a bento: nothing overlaps,
+ * Packs widgets the way food settles into a bento: nothing overlaps,
  * and everything slides up until it rests on something.
  *
- * With `gravity: false` nothing floats up; compartments only move when
+ * With `gravity: false` nothing floats up; widgets only move when
  * something is dropped onto them.
  *
- * When `anchorId` is given, that compartment keeps the spot the person put
+ * When `anchorId` is given, that widget keeps the spot the person put
  * it in and the others make room around it, pushed down where they collide.
  * A final pass lets everything, the anchor included, settle upward, so the
  * preview while dragging and the committed result are the same layout.
@@ -43,7 +43,7 @@ export function settle(
   // Pass 2: settle upward in reading order. Moving up never creates an
   // overlap with an item placed before it, so the result stays valid.
   const settled: Placed[] = [];
-  // With gravity off ("free placement"), compartments stay where they're
+  // With gravity off ("free placement"), widgets stay where they're
   // put and only move when something is dropped on them.
   for (const item of placed.sort(byPosition)) settled.push(gravity ? rise(settled, { ...item }) : item);
 
@@ -66,7 +66,7 @@ function rise(placed: readonly Placed[], item: Placed): Placed {
   return item;
 }
 
-/** The first free cell (reading order) that fits a w×h compartment. */
+/** The first free cell (reading order) that fits a w×h widget. */
 export function findSpot(items: readonly Rect[], w: number, h: number): Rect {
   for (let y = 0; y < GRID_MAX_ROWS; y++) {
     for (let x = 0; x + w <= GRID_COLS; x++) {

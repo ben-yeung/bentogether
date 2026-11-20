@@ -1,0 +1,36 @@
+/* The picker tile for a Calendar, drawn inside AddWidget's .preview cell. */
+.card {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: auto repeat(2, 1fr);
+  gap: 0.1rem;
+  height: 100%;
+  max-height: 11cqi;
+  aspect-ratio: 1.1;
+  padding: 0.4rem;
+  border-radius: 0.35rem;
+  background: var(--ing-tamago);
+  box-shadow: 0 6px 12px -8px color-mix(in srgb, #000 45%, transparent);
+  transform: rotate(1.5deg);
+}
+
+.top {
+  grid-column: 1 / -1;
+  height: 0.3rem;
+  margin-bottom: 0.1rem;
+  border-radius: 0.15rem;
+  background: color-mix(in srgb, var(--note-ink) 50%, transparent);
+}
+
+.day {
+  border-radius: 0.1rem;
+  background: color-mix(in srgb, #fff 55%, transparent);
+}
+
+.day[data-on] {
+  background: color-mix(in srgb, var(--note-ink) 45%, #fff);
+}
+
+.day[data-today] {
+  background: var(--shu);
+}
