@@ -8,3 +8,6 @@ import "./styles/base.css";
 import { App } from "./App";
 
 render(() => <App />, document.getElementById("root")!);
+
+// Local only: a panel for simulating Cloudflare's free-tier limits.
+if (import.meta.env.DEV) void import("./dev/SimulatePanel").then((m) => m.mountSimulatePanel());

@@ -255,6 +255,8 @@ export const CLOSE = {
   forbidden: 4403,
   /** Password protected, and the password was missing or wrong. */
   password: 4401,
+  /** Cloudflare's free daily quota is used up; back after 00:00 UTC. */
+  overCapacity: 4503,
 } as const;
 
 export function parseClientMessage(raw: unknown) {

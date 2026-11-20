@@ -32,7 +32,7 @@ async function join(page: Page, url: string, name: string) {
   await page.goto(url);
   await expect(page.getByRole("dialog", { name: "Join this bento" })).toBeVisible();
   await page.getByLabel("Your name").fill(name);
-  await page.getByRole("button", { name: "Join the table" }).click();
+  await page.getByRole("button", { name: "Join the bento" }).click();
 }
 
 test("a note added and typed by one person appears live for another", async ({ browser }) => {
@@ -197,11 +197,11 @@ test("a password protected bento asks newcomers for the password", async ({ brow
   await b.goto(a.url());
   await b.getByLabel("Your name").fill("Guest");
   await b.getByLabel("Password").fill("wrong-one");
-  await b.getByRole("button", { name: "Join the table" }).click();
+  await b.getByRole("button", { name: "Join the bento" }).click();
   await expect(b.getByText("That password didn't work.")).toBeVisible();
 
   await b.getByLabel("Password").fill("onigiri");
-  await b.getByRole("button", { name: "Join the table" }).click();
+  await b.getByRole("button", { name: "Join the bento" }).click();
   await expect(b.getByText("2 people viewing the bento")).toBeVisible();
 
   // The creator never needs it.
