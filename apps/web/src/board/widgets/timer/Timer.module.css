@@ -1,0 +1,155 @@
+/* A Timer inside the shared widget frame. */
+.timer {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+/* The time across the full width, then the controls under it. */
+.stage {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  row-gap: 0.5em;
+  min-height: 0;
+}
+
+.face {
+  container-type: size;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  min-height: 0;
+}
+
+.time {
+  max-width: 100%;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-size: min(calc(var(--u) * 88), calc(100cqi / (var(--chars) * 0.6)), 68cqb);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--lacquer);
+}
+
+.timeBtn {
+  padding: 0 0.08em;
+  border: 0;
+  border-radius: 0.1em;
+  background: transparent;
+  cursor: text;
+}
+
+.timeBtn:hover {
+  background: color-mix(in srgb, var(--lacquer) 6%, transparent);
+}
+
+.timeInput {
+  text-align: center;
+  border-bottom: 2px solid color-mix(in srgb, var(--lacquer) 30%, transparent);
+}
+
+.state {
+  margin-top: 0.3em;
+  font-family: var(--font-mono);
+  font-size: 0.7em;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+}
+
+/* Time's up: the numbers pulse and the label stands out. */
+.stage[data-done] .time {
+  animation: pulse 1s var(--ease-soft) infinite;
+}
+
+.stage[data-done] .state {
+  color: var(--lacquer);
+  font-weight: 700;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.side,
+.main {
+  display: grid;
+  place-items: center;
+  height: 1.9em;
+  padding: 0;
+  border: 0;
+  border-radius: 0.4em;
+  background: color-mix(in srgb, #fff 35%, transparent);
+  color: color-mix(in srgb, var(--lacquer) 75%, transparent);
+  font-family: var(--font-mono);
+  font-size: 1em;
+  transition:
+    background-color 120ms var(--ease-soft),
+    transform 120ms var(--ease-snap);
+}
+
+.side {
+  justify-self: stretch;
+  font-size: 0.8em;
+  height: calc(1.9em / 0.8);
+}
+
+.main {
+  width: 3.2em;
+  border-radius: 1em;
+  background: var(--lacquer);
+  color: var(--bg);
+}
+
+.side:hover {
+  background: color-mix(in srgb, #fff 60%, transparent);
+  color: var(--lacquer);
+}
+
+.main:hover {
+  transform: scale(1.05);
+}
+
+.side:active,
+.main:active {
+  transform: scale(0.94);
+}
+
+.side svg,
+.main svg {
+  width: 1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.side svg {
+  width: 1.15em;
+  height: 1.15em;
+}
+
+.main svg path:only-child[d^="M5 3.2"] {
+  fill: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage[data-done] .time {
+    animation: none;
+  }
+
+  .side,
+  .main {
+    transition: none;
+  }
+}

@@ -1,0 +1,206 @@
+/* Free times inside the shared widget frame. */
+.free {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.8em;
+}
+
+.range {
+  font-weight: 600;
+}
+
+.zone {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+}
+
+/* Holds the scrolling grid and the floating list over it. */
+.wrap {
+  position: relative;
+  min-height: 0;
+  display: grid;
+}
+
+.scroller {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  border-radius: 0.4em;
+  touch-action: none;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 2px 0;
+  table-layout: fixed;
+  user-select: none;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+}
+
+.corner {
+  width: 3.4em;
+}
+
+.day {
+  padding: 0.15em 0 0.3em;
+  font-size: 0.65em;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.time {
+  padding-right: 0.4em;
+  font-family: var(--font-mono);
+  font-size: 0.55em;
+  font-weight: 400;
+  text-align: right;
+  vertical-align: top;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+  translate: 0 -0.6em;
+}
+
+/*
+ * Each half hour: split into one stripe per person free then, in their own
+ * colors (--stripes). Yours get a ring in your color.
+ */
+.cell {
+  height: 0.85em;
+  padding: 0;
+  background: color-mix(in srgb, #fff 40%, transparent);
+  cursor: cell;
+}
+
+.cell[data-free] {
+  background: var(--stripes);
+}
+
+tr[data-hour] .cell {
+  border-top: 1px solid color-mix(in srgb, var(--lacquer) 10%, transparent);
+}
+
+.cell[data-mine] {
+  box-shadow:
+    inset 0 0 0 1.5px var(--mine),
+    inset 0 0 0 2.5px color-mix(in srgb, var(--lacquer) 45%, transparent);
+}
+
+.cell:hover {
+  outline: 1.5px solid var(--lacquer);
+  outline-offset: -1px;
+}
+
+.cell[data-out] {
+  background: transparent;
+  cursor: default;
+}
+
+.cell[data-readonly] {
+  cursor: default;
+}
+
+.people {
+  display: flex;
+  gap: 0.2em;
+  flex: none;
+}
+
+.best {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Who's free in the hovered half hour: floats above the cell (below near the top). */
+.pop {
+  position: absolute;
+  z-index: 3;
+  translate: -50% calc(-100% - 0.4em);
+  min-width: 7em;
+  max-width: 14em;
+  padding: 0.45em 0.6em;
+  border-radius: 0.55em;
+  background: var(--lacquer);
+  color: var(--bg);
+  box-shadow: 0 10px 24px -10px color-mix(in srgb, #000 60%, transparent);
+  pointer-events: none;
+  font-size: 0.75em;
+  animation: pop 120ms var(--ease-snap);
+}
+
+.pop[data-below] {
+  translate: -50% 0.4em;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+  }
+}
+
+.popTime {
+  margin: 0 0 0.3em;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.popEmpty {
+  margin: 0;
+  opacity: 0.8;
+}
+
+.popList {
+  display: grid;
+  gap: 0.2em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.popPerson {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.swatch {
+  flex: none;
+  width: 0.75em;
+  height: 0.75em;
+  border-radius: 0.2em;
+  background: var(--c);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    animation: none;
+  }
+}

@@ -34,7 +34,7 @@ export class Unreachable extends Error {
 }
 
 /** Meta plus live counts and the colors of whoever is there right now. */
-export type BoxInfo = BoxMeta & { people: number; compartments: number; hues?: number[] };
+export type BoxInfo = BoxMeta & { people: number; widgetCount: number; hues?: number[] };
 
 /** `fetch` that turns a network failure or a quota response into a typed error. */
 async function call(path: string, init?: RequestInit): Promise<Response> {

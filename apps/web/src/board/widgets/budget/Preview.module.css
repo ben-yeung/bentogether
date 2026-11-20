@@ -1,0 +1,33 @@
+/* The picker tile for this kind, drawn inside AddWidget's .preview cell. */
+/* The total between a − and a +. */
+.card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.25rem;
+  height: 100%;
+  max-height: 11cqi;
+  aspect-ratio: 1.1;
+  /* Percentages here would follow the tile, not the card. */
+  padding: 0.45rem 0.35rem;
+  border-radius: 0.35rem;
+  background: var(--ing-tamago);
+  color: var(--note-ink);
+  box-shadow: 0 6px 12px -8px color-mix(in srgb, #000 45%, transparent);
+  transform: rotate(-2deg);
+}
+
+.amount {
+  text-align: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.sign {
+  font-weight: 600;
+  font-size: 0.7rem;
+  color: color-mix(in srgb, var(--note-ink) 55%, transparent);
+}

@@ -7,7 +7,7 @@ import { Pointer, type PointerVariant } from "../cursors/Pointer";
 import { personVars } from "../lib/identity";
 import styles from "./Splash.module.css";
 
-/** Decorative compartments behind the modal: a packed box, out of focus. */
+/** Decorative widgets behind the modal: a packed box, out of focus. */
 const CELLS: Array<[x: number, y: number, w: number, h: number, color: string]> = [
   [0, 0, 4, 3, "tamago"],
   [4, 0, 3, 2, "sake"],

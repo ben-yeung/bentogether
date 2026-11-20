@@ -1,0 +1,124 @@
+/* A Poll inside the shared widget frame. */
+.poll {
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+}
+
+.options {
+  display: grid;
+  align-content: start;
+  gap: 0.3em;
+}
+
+.row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+/* The whole option is the vote button: a faint recessed track, with its
+   share filling it as a lighter bar of the widget's own color. Light on
+   pastel reads as "more" without the grey of a dark tint. */
+.vote {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.45em;
+  min-width: 0;
+  padding: 0.3em 0.5em;
+  border: 0;
+  border-radius: 0.45em;
+  background: color-mix(in srgb, var(--lacquer) 6%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.vote::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: calc(var(--share) * 100%);
+  border-radius: inherit;
+  background: color-mix(in srgb, #fff 62%, transparent);
+  transition: width 260ms var(--ease-soft);
+}
+
+.vote:hover {
+  background: color-mix(in srgb, var(--lacquer) 11%, transparent);
+}
+
+.row[data-picked] .vote {
+  box-shadow: inset 0 0 0 1.5px var(--lacquer);
+}
+
+.mark {
+  width: 0.85em;
+  height: 0.85em;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--lacquer) 50%, transparent);
+}
+
+.mark[data-multi] {
+  border-radius: 0.25em;
+}
+
+.row[data-picked] .mark {
+  border-color: var(--lacquer);
+  background: var(--lacquer);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, #fff 70%, transparent);
+}
+
+.text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voters {
+  display: flex;
+  gap: 0.15em;
+}
+
+.n {
+  min-width: 1em;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+}
+
+.editField {
+  padding: 0.3em 0.5em;
+}
+
+/* Edit and remove float over the right end of the row on hover. */
+.rowTools {
+  position: absolute;
+  right: 0.25em;
+  top: 50%;
+  translate: 0 -50%;
+  display: flex;
+  gap: 0.1em;
+  pointer-events: none;
+}
+
+.rowTools > * {
+  pointer-events: auto;
+  background: color-mix(in srgb, #fff 70%, transparent);
+}
+
+.count {
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vote::before {
+    transition: none;
+  }
+}

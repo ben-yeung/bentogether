@@ -69,7 +69,12 @@ describe("parseClientMessage", () => {
       },
     });
     expect(res.success).toBe(true);
-    if (res.success && res.output.t === "op" && res.output.op.type === "create")
+    if (
+      res.success &&
+      res.output.t === "op" &&
+      res.output.op.type === "create" &&
+      res.output.op.kind === "note"
+    )
       expect(res.output.op.text).toBe("");
   });
 

@@ -5,14 +5,23 @@ import {
   DEFAULT_BOX_OPTIONS,
   DEFAULT_TEXT_SIZE,
   EMPTY_PRESENCE,
-  NOTE_SIZE,
+  DEFAULT_CURRENCY,
   PROTOCOL_VERSION,
+  WIDGET_SIZE,
+  applyBudgetChange,
+  applyTodoChange,
+  applyWidgetChange,
+  blankFields,
+  voterKey,
   findSpot,
   randomId,
   settle,
   type Access,
   type AssignableRole,
   type BoxMeta,
+  type BudgetChange,
+  type BudgetLog,
+  type Currency,
   type ClientMessage,
   type Role,
   type NoteColor,
@@ -22,7 +31,13 @@ import {
   type Rect,
   type ServerMessage,
   type TextSize,
+  type TodoChange,
+  type TodoItem,
+  type FramedKind,
+  type FramedWidget,
   type Widget,
+  type WidgetChange,
+  type WidgetKind,
 } from "@bentogether/shared";
 import { Socket, type SocketStatus } from "../lib/socket";
 import { socketUrl } from "../lib/config";
@@ -66,12 +81,44 @@ type ServerState = {
  * See docs/SOLID-2.md, ledger entry 1.
  */
 type Overlay = {
-  created: Record<string, Widget>;
   rects: Record<string, Rect>;
   colors: Record<string, NoteColor>;
   sizes: Record<string, TextSize>;
   deleted: Record<string, true>;
   title: string | null;
+  currencies: Record<string, Currency>;
+};
+
+/**
+ * List edits on their way to the server. Kept out of actions on purpose:
+ * people tick and add items in quick bursts, and real input arriving while
+ * an earlier action is in flight is folded into one hold, which can flash
+ * the page's <Loading> fallback (see docs/SOLID-2.md, ledger entry 13). Each
+ * entry is removed when the server answers, like typed note text.
+ */
+type Pending = {
+  /** Title lines of list widgets, by widget id. */
+  titles: Record<string, { key: string; title: string }>;
+  /**
+   * Item changes by opId, replayed in order on top of the server's list so
+   * what others change meanwhile stays visible.
+   */
+  changes: Record<string, { wid: string; seq: number; change: TodoChange }>;
+  /**
+   * Budget changes by opId, replayed the same way. Unlike item changes these
+   * aren't safe to apply twice (a −20 counted twice is −40), so each one is
+   * dropped in the same tick the server's confirmation lands.
+   */
+  budget: Record<string, { wid: string; seq: number; change: BudgetChange }>;
+  /** Changes to the other kinds (Timer, Poll, ...), dropped the same way. */
+  widget: Record<string, { wid: string; seq: number; change: WidgetChange }>;
+  /**
+   * Widgets you've just added, by opId, until the server confirms
+   * them. Not in the overlay: a row drawn from an action's optimistic write
+   * is rebuilt when the action settles, which would drop anything you'd
+   * started typing into the new widget.
+   */
+  created: Record<string, Widget>;
 };
 
 export type BoxSession = ReturnType<typeof createSession>["session"];
@@ -100,15 +147,38 @@ function createSession(boxId: string, identity: () => Hello) {
     notice: null,
   });
   const [overlay, setOverlay] = createOptimisticStore<Overlay>({
-    created: {},
     rects: {},
     colors: {},
     sizes: {},
     deleted: {},
     title: null,
+    currencies: {},
   });
+  const [pending, setPending] = createStore<Pending>({
+    titles: {},
+    changes: {},
+    budget: {},
+    widget: {},
+    created: {},
+  });
+
+  /** Drops a confirmed or refused change, in the same batch as the server's answer. */
+  function dropPending(opId: string) {
+    if (!pending.changes[opId] && !pending.budget[opId] && !pending.widget[opId] && !pending.created[opId])
+      return;
+    setPending((d) => {
+      delete d.changes[opId];
+      delete d.budget[opId];
+      delete d.widget[opId];
+      delete d.created[opId];
+    });
+  }
   const [peers, setPeers] = createStore<Record<string, Peer>>({});
   const [leases, setLeases] = createStore<Record<string, string>>({});
+
+  /** Server clock minus ours, from the welcome; timers count with it. */
+  let clockOffset = 0;
+  const serverNow = () => Date.now() + clockOffset;
 
   let resolveReady!: () => void;
   let rejectReady!: (e: Error) => void;
@@ -131,8 +201,7 @@ function createSession(boxId: string, identity: () => Hello) {
   const inflight = new Map<string, { resolve: () => void; reject: (e: Error) => void; timer: number }>();
   const leaseWaiters = new Map<string, (granted: boolean) => void>();
 
-  function sendOp(op: Op): Promise<void> {
-    const opId = randomId(10);
+  function sendOp(op: Op, opId = randomId(10)): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       if (!socket.send({ t: "op", opId, op })) {
         reject(new OpRejected("You're offline. That change wasn't saved."));
@@ -168,6 +237,7 @@ function createSession(boxId: string, identity: () => Hello) {
   function onMessage(msg: ServerMessage) {
     switch (msg.t) {
       case "welcome": {
+        clockOffset = msg.now - Date.now();
         setServer((d) => {
           d.meta = msg.box;
           d.rev = msg.rev;
@@ -197,10 +267,14 @@ function createSession(boxId: string, identity: () => Hello) {
             else d.widgets[w.id] = w;
           }
         });
-        if (msg.opId && msg.by === server.sid) settleOp(msg.opId);
+        if (msg.opId && msg.by === server.sid) {
+          dropPending(msg.opId);
+          settleOp(msg.opId);
+        }
         return;
       }
       case "rejected":
+        dropPending(msg.opId);
         settleOp(msg.opId, new OpRejected(msg.message));
         return;
       case "join":
@@ -294,10 +368,13 @@ function createSession(boxId: string, identity: () => Hello) {
 
   // ------------------------------------------------------------- reading
 
-  /** Compartment ids in creation order, so the DOM order is stable. */
+  /** Widget ids in creation order, so the DOM order is stable. */
   const ids = createMemo(
     () => {
-      const all = new Set([...Object.keys(server.widgets), ...Object.keys(overlay.created)]);
+      const all = new Set([
+        ...Object.keys(server.widgets),
+        ...Object.values(pending.created).map((w) => w.id),
+      ]);
       return [...all]
         .filter((id) => !overlay.deleted[id])
         .sort((a, b) => (base(a)?.createdAt ?? 0) - (base(b)?.createdAt ?? 0) || (a < b ? -1 : 1));
@@ -308,7 +385,7 @@ function createSession(boxId: string, identity: () => Hello) {
   const gravity = () => ({ gravity: server.meta?.options.autoPack ?? false });
 
   function base(id: string): Widget | undefined {
-    return server.widgets[id] ?? overlay.created[id];
+    return server.widgets[id] ?? Object.values(pending.created).find((w) => w.id === id);
   }
 
   function rect(id: string): Rect | undefined {
@@ -340,30 +417,44 @@ function createSession(boxId: string, identity: () => Hello) {
   // Success: the overlay reverts and the confirmed value shows through.
   // Rejection: the action throws and the overlay reverts by itself.
 
-  const addNote = action(function* (color: NoteColor) {
+  /**
+   * Adds a widget of any kind in the first free spot that fits it. It
+   * shows at once (see Pending.created) and resolves with its id once the
+   * server confirms it.
+   */
+  function add(kind: WidgetKind, color: NoteColor): Promise<string> {
     const id = randomId(12);
-    const spot = findSpot(rects(), NOTE_SIZE.default.w, NOTE_SIZE.default.h);
-    const now = Date.now();
-    const me = peers[server.sid];
-    setOverlay((d) => {
-      d.created[id] = {
-        id,
-        kind: "note",
-        ...spot,
-        text: "",
-        color,
-        size: DEFAULT_TEXT_SIZE,
-        createdBy: me?.name ?? "you",
-        createdAt: now,
-        updatedAt: now,
-      };
+    const opId = randomId(10);
+    const size = WIDGET_SIZE[kind].default;
+    const rect = findSpot(rects(), size.w, size.h);
+    const now = serverNow();
+    const stamp = { createdBy: peers[server.sid]?.name ?? "you", createdAt: now, updatedAt: now };
+    const base = { id, ...rect, color, ...stamp };
+    setPending((d) => {
+      d.created[opId] =
+        kind === "note"
+          ? { ...base, kind, text: "", size: DEFAULT_TEXT_SIZE }
+          : kind === "todo"
+            ? { ...base, kind, title: "", items: [] }
+            : kind === "budget"
+              ? { ...base, kind, title: "", currency: DEFAULT_CURRENCY, amount: 0, log: [] }
+              : ({ ...base, title: "", ...blankFields(kind, now) } as Widget);
     });
-    overlayLayout(settle([...rects(), { id, ...spot }], id, gravity()));
-    yield sendOp({ type: "create", id, kind: "note", rect: spot, color, size: DEFAULT_TEXT_SIZE, text: "" });
-    return id;
-  });
+    return sendOp(
+      kind === "note"
+        ? { type: "create", id, kind, rect, color, size: DEFAULT_TEXT_SIZE, text: "" }
+        : kind === "todo"
+          ? { type: "create", id, kind, rect, color, title: "" }
+          : kind === "budget"
+            ? { type: "create", id, kind, rect, color, title: "", currency: DEFAULT_CURRENCY }
+            : { type: "create", id, kind, rect, color, title: "" },
+      opId,
+    )
+      .then(() => id)
+      .finally(() => dropPending(opId));
+  }
 
-  const moveNote = action(function* (id: string, to: Rect) {
+  const move = action(function* (id: string, to: Rect) {
     overlayLayout(settle([...rects().filter((r) => r.id !== id), { id, ...to }], id, gravity()));
     yield sendOp({ type: "move", id, rect: to });
   });
@@ -381,6 +472,118 @@ function createSession(boxId: string, identity: () => Hello) {
     });
     yield sendOp({ type: "patch", id, size });
   });
+
+  /** The title line of a To-do or Budget. Last one saved wins. */
+  function setListTitle(id: string, title: string): Promise<void> {
+    const key = randomId(10);
+    setPending((d) => {
+      d.titles[id] = { key, title };
+    });
+    return sendOp({ type: "patch", id, title }).finally(() =>
+      setPending((d) => {
+        // Only clear it if a later rename hasn't replaced it.
+        if (d.titles[id]?.key === key) delete d.titles[id];
+      }),
+    );
+  }
+
+  let changeSeq = 0;
+
+  /** One change to one item in a list; shows at once, confirmed by the server. */
+  function changeItem(id: string, change: TodoChange): Promise<void> {
+    const opId = randomId(10);
+    const seq = ++changeSeq;
+    setPending((d) => {
+      d.changes[opId] = { wid: id, seq, change };
+    });
+    // Usually already dropped with the server's answer; this covers timeouts and going offline.
+    return sendOp({ type: "item", id, change }, opId).finally(() => dropPending(opId));
+  }
+
+  /** A +/− click, a typed amount, or a new total; shows at once. */
+  function changeBudget(id: string, change: BudgetChange): Promise<void> {
+    const opId = randomId(10);
+    const seq = ++changeSeq;
+    setPending((d) => {
+      d.budget[opId] = { wid: id, seq, change };
+    });
+    return sendOp({ type: "budget", id, change }, opId).finally(() => dropPending(opId));
+  }
+
+  /** A Budget's total and recent changes, with your changes in flight on top. */
+  function budget(id: string): { amount: number; log: BudgetLog[]; currency: Currency } {
+    const w = base(id);
+    if (w?.kind !== "budget") return { amount: 0, log: [], currency: DEFAULT_CURRENCY };
+    const me = peers[server.sid];
+    const who = { name: me?.name ?? "you", hue: me?.hue ?? 0 };
+    let state: { amount: number; log: readonly BudgetLog[] } = w;
+    const mine = Object.values(pending.budget)
+      .filter((c) => c.wid === id)
+      .sort((a, b) => a.seq - b.seq);
+    for (const { change } of mine) {
+      const res = applyBudgetChange(state, change, who, Date.now());
+      if ("amount" in res) state = res;
+    }
+    return {
+      amount: state.amount,
+      log: state.log as BudgetLog[],
+      currency: overlay.currencies[id] ?? w.currency,
+    };
+  }
+
+  /** You, as polls and free-times grids know you. */
+  const voter = () => voterKey(identity().clientId, boxId);
+
+  /** One change to a Timer, Poll, Ideas, Asks, Free times or Calendar; shows at once. */
+  function change(id: string, c: WidgetChange): Promise<void> {
+    const opId = randomId(10);
+    const seq = ++changeSeq;
+    setPending((d) => {
+      d.widget[opId] = { wid: id, seq, change: c };
+    });
+    return sendOp({ type: "change", id, change: c }, opId).finally(() => dropPending(opId));
+  }
+
+  /** A widget of one of those kinds, with your changes in flight on top. */
+  function live<K extends FramedKind>(id: string, kind: K): Extract<Widget, { kind: K }> | undefined {
+    const w = base(id);
+    if (w?.kind !== kind) return undefined;
+    const me = peers[server.sid];
+    const ctx = { name: me?.name ?? "you", hue: me?.hue ?? 0, voter: voter(), now: serverNow() };
+    let cur: Widget = w;
+    const mine = Object.values(pending.widget)
+      .filter((c) => c.wid === id)
+      .sort((a, b) => a.seq - b.seq);
+    for (const { change: c } of mine) {
+      const res = applyWidgetChange(cur, c, ctx);
+      if (!("code" in res)) cur = res as FramedWidget;
+    }
+    return cur as Extract<Widget, { kind: K }>;
+  }
+
+  const setCurrency = action(function* (id: string, currency: Currency) {
+    setOverlay((d) => {
+      d.currencies[id] = currency;
+    });
+    yield sendOp({ type: "patch", id, currency });
+  });
+
+  /** A list's items: the server's, with your changes in flight applied on top. */
+  function items(id: string): TodoItem[] {
+    const w = base(id);
+    if (w?.kind !== "todo") return [];
+    const mine = Object.values(pending.changes)
+      .filter((c) => c.wid === id)
+      .sort((a, b) => a.seq - b.seq);
+    const me = peers[server.sid]?.name ?? "you";
+    let list: readonly TodoItem[] = w.items;
+    for (const { change } of mine) {
+      const res = applyTodoChange(list, change, me, Date.now());
+      // Something someone else did made it moot (say, the item's gone): skip it.
+      if ("items" in res) list = res.items;
+    }
+    return list as TodoItem[];
+  }
 
   /** Owner only; the server enforces it and rejects anyone else. */
   const retitle = action(function* (title: string) {
@@ -408,6 +611,11 @@ function createSession(boxId: string, identity: () => Hello) {
   const setRole = action(function* (sid: string, role: AssignableRole) {
     yield request((opId) => ({ t: "role", opId, sid, role }));
   });
+
+  /** Owner only: removes every widget, for everyone. Can't be undone. */
+  function clearBento(): Promise<void> {
+    return request((opId) => ({ t: "clear", opId }));
+  }
 
   /** Sends a request the server answers with `meta`/`peer` (or `rejected`) carrying its opId. */
   function request(build: (opId: string) => ClientMessage): Promise<void> {
@@ -537,8 +745,24 @@ function createSession(boxId: string, identity: () => Hello) {
     rect,
     rects,
     color: (id: string): NoteColor => overlay.colors[id] ?? base(id)?.color ?? "tamago",
-    text: (id: string) => base(id)?.text ?? "",
-    textSize: (id: string): TextSize => overlay.sizes[id] ?? base(id)?.size ?? DEFAULT_TEXT_SIZE,
+    text: (id: string) => {
+      const w = base(id);
+      return w?.kind === "note" ? w.text : "";
+    },
+    textSize: (id: string): TextSize => {
+      const w = base(id);
+      return overlay.sizes[id] ?? (w?.kind === "note" ? w.size : undefined) ?? DEFAULT_TEXT_SIZE;
+    },
+    kind: (id: string): WidgetKind | undefined => base(id)?.kind,
+    listTitle: (id: string) => {
+      const w = base(id);
+      return pending.titles[id]?.title ?? (w && "title" in w ? w.title : "");
+    },
+    items,
+    budget,
+    live,
+    voter,
+    serverNow,
     widget: base,
     isMine: (sid: string) => sid === server.sid,
     options: () => server.meta?.options ?? DEFAULT_BOX_OPTIONS,
@@ -552,13 +776,20 @@ function createSession(boxId: string, identity: () => Hello) {
     },
     access: (): Access => server.meta?.access ?? DEFAULT_ACCESS,
     // actions
-    addNote,
-    moveNote,
+    add,
+    addNote: (color: NoteColor) => add("note", color),
+    move,
+    changeItem,
+    changeBudget,
+    change,
+    setCurrency,
+    setListTitle,
     recolor,
     resizeText,
     retitle,
     setAccess,
     setOptions,
+    clearBento,
     setRole,
     remove,
     // live

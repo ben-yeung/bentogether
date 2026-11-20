@@ -18,7 +18,7 @@ import {
 import { NameField } from "../ui/NameField";
 import { rememberBox } from "../lib/recent";
 import { ownerTokenFor } from "../lib/owner";
-import { viewingLabel } from "../lib/format";
+import { viewingLabel, widgetsLabel } from "../lib/format";
 import { navigate } from "../lib/router";
 import { createToaster } from "../ui/toasts";
 import { Splash } from "../ui/Splash";
@@ -208,8 +208,7 @@ function JoinGate(props: {
           <p class={styles.joinKicker}>You're invited to</p>
           <h1 class={styles.joinTitle}>{info().title}</h1>
           <p class={styles.joinMeta}>
-            {viewingLabel(info().people)} · {info().compartments}{" "}
-            {info().compartments === 1 ? "note" : "notes"}
+            {viewingLabel(info().people)} · {widgetsLabel(info().widgetCount)}
           </p>
         </Loading>
         <form

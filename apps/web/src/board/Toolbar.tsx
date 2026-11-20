@@ -5,7 +5,7 @@ import { personVars } from "../lib/identity";
 import { viewingLabel } from "../lib/format";
 import type { BoxSession } from "./session";
 import { ShareDialog } from "./ShareDialog";
-import { SettingsDialog } from "./SettingsDialog";
+import { ClearBentoDialog, SettingsDialog } from "./SettingsDialog";
 import styles from "./Toolbar.module.css";
 
 const STATUS_COPY = {
@@ -26,6 +26,7 @@ export function Toolbar(props: {
   const [editingTitle, setEditingTitle] = createSignal(false);
   const [sharing, setSharing] = createSignal(false);
   const [settings, setSettings] = createSignal(false);
+  const [clearing, setClearing] = createSignal(false);
 
   /*
    * When the bar runs short of room, the "viewing the bento" label goes
@@ -196,6 +197,16 @@ export function Toolbar(props: {
         onClose={() => setSettings(false)}
         session={s()}
         onRename={props.onRename}
+        onClear={() => {
+          setSettings(false);
+          setClearing(true);
+        }}
+        toast={props.toast}
+      />
+      <ClearBentoDialog
+        open={clearing()}
+        onClose={() => setClearing(false)}
+        session={s()}
         toast={props.toast}
       />
       <ShareDialog open={sharing()} onClose={() => setSharing(false)} session={s()} toast={props.toast} />

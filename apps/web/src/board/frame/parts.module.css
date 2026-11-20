@@ -1,0 +1,174 @@
+/*
+ * Pieces the newer widgets share (Timer, Poll, Ideas, Asks, Free
+ * times, Calendar): the title line, an add field, small icon buttons and
+ * the garbage can. Sizes are in em off the widget's --u scale.
+ */
+
+.body {
+  display: grid;
+  row-gap: calc(var(--u) * 4);
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 16);
+  line-height: 1.35;
+  min-height: 0;
+}
+
+/* Inputs read as plain text until you're in them. */
+.plain {
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.plain::placeholder {
+  color: color-mix(in srgb, var(--lacquer) 45%, transparent);
+}
+
+.plain:read-only {
+  cursor: inherit;
+}
+
+.title {
+  /* A little more air between the title and what's under it. */
+  margin-bottom: calc(var(--u) * 5);
+  /* Clear of the delete button in the corner. */
+  padding-right: 1.6em;
+  font-family: var(--font-display);
+  font-size: 1.15em;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+}
+
+/* Only as wide as the title itself, so the rest of the line stays a place
+   to grab the widget. `size` (set in the markup) covers browsers without
+   field-sizing. */
+.title {
+  field-sizing: content;
+  justify-self: start;
+  width: auto;
+  min-width: 2ch;
+  max-width: calc(100% - 1.6em);
+  padding-right: 0;
+}
+
+/* Underlined while you edit text in place. */
+.editing {
+  border-bottom: 1px solid color-mix(in srgb, var(--lacquer) 35%, transparent);
+}
+
+.scroll {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.add {
+  display: grid;
+  grid-template-columns: 1.05em 1fr;
+  align-items: center;
+  gap: 0.45em;
+  padding-top: 0.25em;
+  border-top: 1px dashed color-mix(in srgb, var(--lacquer) 20%, transparent);
+}
+
+.plus {
+  text-align: center;
+  color: color-mix(in srgb, var(--lacquer) 50%, transparent);
+}
+
+.muted {
+  color: color-mix(in srgb, var(--lacquer) 50%, transparent);
+}
+
+/* A small square icon button: trash, history, arrows. */
+.icon {
+  display: grid;
+  place-items: center;
+  width: 1.4em;
+  height: 1.4em;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0.3em;
+  background: transparent;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+  transition:
+    background-color 120ms var(--ease-soft),
+    color 120ms var(--ease-soft),
+    opacity 120ms var(--ease-soft);
+}
+
+.icon:hover,
+.icon[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--lacquer) 10%, transparent);
+  color: var(--lacquer);
+}
+
+.icon svg {
+  width: 0.9em;
+  height: 0.9em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Shows on hover of the row it's in (any element with data-row). */
+.onHover {
+  opacity: 0;
+}
+
+[data-row]:hover .onHover,
+.onHover:focus-visible {
+  opacity: 1;
+}
+
+/* A small text button: "Clear votes", "Today". */
+.chip {
+  height: 1.6em;
+  padding: 0 0.5em;
+  border: 0;
+  border-radius: 0.4em;
+  background: transparent;
+  color: color-mix(in srgb, var(--lacquer) 70%, transparent);
+  font-size: 0.8em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chip:hover,
+.chip[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--lacquer) 9%, transparent);
+  color: var(--lacquer);
+}
+
+/* A person's dot, in their color (set --c). */
+.dot {
+  display: inline-block;
+  flex: none;
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon {
+    transition: none;
+  }
+}

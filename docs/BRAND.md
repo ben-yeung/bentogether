@@ -5,7 +5,7 @@
 A bento box is a small shared table: the box holds the shape, the
 compartments keep things tidy, and what goes inside is up to the people
 around it. benTogether is a live board built the same way. The **box** is the
-board, the **compartments** are widgets snapped to a grid, and the
+board, the **widgets** are its compartments, snapped to a grid, and the
 **people** are the colored cursors filling them in at the same moment.
 
 The brand should feel like a well-packed lunch: warm, tidy, a little playful,
@@ -20,7 +20,7 @@ never cluttered.
   "Bento Together".
 - The capital T marks where the two words meet. "benTo" is the box,
   "Together" is the people, and the **T** belongs to both, the way a shared
-  compartment belongs to everyone.
+  widget belongs to everyone.
 - In the wordmark, **"benTo" is underlined** with a shu (lacquer red) rule,
   like the edge of a bento box. "gether" sits off the line. In running text
   the name is plain, with no underline.
@@ -28,13 +28,13 @@ never cluttered.
 
 ## Vocabulary
 
-| Say         | Not                | Why                                     |
-| ----------- | ------------------ | --------------------------------------- |
-| box         | board, workspace   | The board is the bento box.             |
-| compartment | widget, card, tile | In UI copy. Code can say `widget`.      |
-| note        | sticky, post-it    | The first kind of compartment.          |
-| viewing     | online, active     | Presence: "3 people viewing the bento". |
-| pack / fill | create / populate  | Use sparingly, once per screen at most. |
+| Say         | Not               | Why                                     |
+| ----------- | ----------------- | --------------------------------------- |
+| box         | board, workspace  | The board is the bento box.             |
+| widget      | compartment, card | In UI copy and code alike.              |
+| note        | sticky, post-it   | The first kind of widget.               |
+| viewing     | online, active    | Presence: "3 people viewing the bento". |
+| pack / fill | create / populate | Use sparingly, once per screen at most. |
 
 Keep food metaphors to one per screen. The metaphor is the seasoning, not
 the meal.
@@ -56,7 +56,7 @@ Say what it is, then stop. Hints under controls are one short line each
 
 Examples:
 
-- Empty box: "An empty box. Add a note to fill the first compartment."
+- Empty box: "An empty bento. Add a widget to start filling it."
 - Connecting: rotates through `LOADING_LINES` in `ui/LoadingLine.tsx`, e.g. "Joining the bento…", "Opening the lid…"
 - Reconnecting: "Lost the connection. Reconnecting…"
 - Missing box: "This box doesn't exist, or it was cleared away."

@@ -1,8 +1,12 @@
 import {
   EMPTY_PRESENCE,
-  NOTE_SIZE,
-  SYSTEM_AUTHOR,
-  clampRect,
+  applyBudgetChange,
+  applyTodoChange,
+  applyWidgetChange,
+  blankFields,
+  viewerMay,
+  voterKey,
+  clampFor,
   settle,
   separateHue,
   changedIds,
@@ -19,6 +23,7 @@ import {
   type ServerMessage,
   type Widget,
 } from "@bentogether/shared";
+import { starterBento } from "./template";
 
 export const MAX_WIDGETS = 300;
 export const MAX_PEERS = 32;
@@ -105,6 +110,7 @@ export class Room {
           widgets: [...this.widgets.values()],
           leases: this.leaseRecord(),
           rev: this.rev,
+          now: this.now(),
         },
       },
       { target: { to: "others", except: sid }, msg: { t: "join", peer: this.public(peer) } },
@@ -274,7 +280,8 @@ export class Room {
   lease(sid: string, id: string, take: boolean): Outgoing[] {
     const holder = this.leases.get(id);
     if (take) {
-      if (!this.widgets.has(id)) return [];
+      // Only notes are typed in by one person at a time.
+      if (this.widgets.get(id)?.kind !== "note") return [];
       // Viewers watch; the answer "nobody holds it, and not you" ends their wait.
       if (this.peers.get(sid)?.role === "viewer") {
         return [{ target: { to: "one", sid }, msg: { t: "lease", id, holder: holder ?? null } }];
@@ -300,7 +307,10 @@ export class Room {
       persist,
     });
     const author = this.peers.get(sid);
-    if (author?.role === "viewer") return reject("forbidden", "You can view this bento, not edit it.");
+    // Viewers may only vote (a poll, an Ideas upvote).
+    const viewerVote = op.type === "change" && viewerMay(op.change);
+    if (author?.role === "viewer" && !viewerVote)
+      return reject("forbidden", "You can view this bento, not edit it.");
     const holder = this.leases.get(op.id);
     const t = this.now();
 
@@ -309,46 +319,96 @@ export class Room {
 
     switch (op.type) {
       case "create": {
-        if (this.widgets.has(op.id)) return reject("exists", "That compartment already exists.");
+        if (this.widgets.has(op.id)) return reject("exists", "That widget already exists.");
         if (this.widgets.size >= MAX_WIDGETS) return reject("limit", "This bento is full.");
-        const rect = clampRect(op.rect, NOTE_SIZE.min, NOTE_SIZE.max);
-        const note: Widget = {
-          id: op.id,
-          kind: "note",
-          ...rect,
-          text: op.text,
-          color: op.color,
-          size: op.size,
-          createdBy: author?.name ?? "someone",
-          createdAt: t,
-          updatedAt: t,
-        };
-        this.widgets.set(note.id, note);
-        upsert = this.relayout(note.id);
+        const rect = clampFor(op.kind, op.rect);
+        const stamp = { createdBy: author?.name ?? "someone", createdAt: t, updatedAt: t };
+        const base = { id: op.id, ...rect, color: op.color, ...stamp };
+        const widget: Widget =
+          op.kind === "note"
+            ? { ...base, kind: "note", text: op.text, size: op.size }
+            : op.kind === "todo"
+              ? { ...base, kind: "todo", title: op.title, items: [] }
+              : op.kind === "budget"
+                ? { ...base, kind: "budget", title: op.title, currency: op.currency, amount: 0, log: [] }
+                : ({ ...base, title: op.title, ...blankFields(op.kind, t) } as Widget);
+        this.widgets.set(widget.id, widget);
+        upsert = this.relayout(widget.id);
         break;
       }
       case "move": {
         const w = this.widgets.get(op.id);
-        if (!w) return reject("not_found", "That compartment is gone.");
-        Object.assign(w, clampRect(op.rect, NOTE_SIZE.min, NOTE_SIZE.max), { updatedAt: t });
+        if (!w) return reject("not_found", "That widget is gone.");
+        Object.assign(w, clampFor(w.kind, op.rect), { updatedAt: t });
         upsert = this.relayout(w.id);
         break;
       }
       case "patch": {
         const w = this.widgets.get(op.id);
-        if (!w) return reject("not_found", "That compartment is gone.");
-        if (op.text !== undefined) {
-          if (holder !== sid) return reject("leased", "Someone else is typing here.");
-          w.text = op.text;
+        if (!w) return reject("not_found", "That widget is gone.");
+        if (op.currency !== undefined && w.kind !== "budget")
+          return reject("invalid", "Only a budget has a currency.");
+        if (w.kind === "note") {
+          if (op.title !== undefined) return reject("invalid", "Notes don't have a title.");
+          if (op.text !== undefined) {
+            if (holder !== sid) return reject("leased", "Someone else is typing here.");
+            w.text = op.text;
+          }
+          if (op.size !== undefined) w.size = op.size;
+        } else {
+          if (op.text !== undefined || op.size !== undefined)
+            return reject("invalid", "That only applies to a note.");
+          // Short and set in one go, so the last one saved wins.
+          if (op.title !== undefined) w.title = op.title.trim();
+          if (op.currency !== undefined && w.kind === "budget") w.currency = op.currency;
         }
         if (op.color !== undefined) w.color = op.color;
-        if (op.size !== undefined) w.size = op.size;
         w.updatedAt = t;
         upsert = [w];
         break;
       }
+      case "item": {
+        const w = this.widgets.get(op.id);
+        if (!w) return reject("not_found", "That widget is gone.");
+        if (w.kind !== "todo") return reject("invalid", "That widget has no list.");
+        const result = applyTodoChange(w.items, op.change, author?.name ?? "someone", t);
+        if ("code" in result) return reject(result.code, result.message);
+        w.items = result.items;
+        w.updatedAt = t;
+        upsert = [w];
+        break;
+      }
+      case "budget": {
+        const w = this.widgets.get(op.id);
+        if (!w) return reject("not_found", "That widget is gone.");
+        if (w.kind !== "budget") return reject("invalid", "That widget isn't a budget.");
+        const who = { name: author?.name ?? "someone", hue: author?.hue ?? 0 };
+        const result = applyBudgetChange(w, op.change, who, t);
+        if ("code" in result) return reject(result.code, result.message);
+        w.amount = result.amount;
+        w.log = result.log;
+        w.updatedAt = t;
+        upsert = [w];
+        break;
+      }
+      case "change": {
+        const w = this.widgets.get(op.id);
+        if (!w) return reject("not_found", "That widget is gone.");
+        const ctx = {
+          name: author?.name ?? "someone",
+          hue: author?.hue ?? 0,
+          voter: voterKey(author?.clientId ?? sid, this.meta.id),
+          now: t,
+        };
+        const result = applyWidgetChange(w, op.change, ctx);
+        if ("code" in result) return reject(result.code, result.message);
+        const next = { ...result, updatedAt: t };
+        this.widgets.set(w.id, next);
+        upsert = [next];
+        break;
+      }
       case "delete": {
-        if (!this.widgets.has(op.id)) return reject("not_found", "That compartment is gone.");
+        if (!this.widgets.has(op.id)) return reject("not_found", "That widget is gone.");
         if (holder && holder !== sid) return reject("leased", "Someone is typing here.");
         this.widgets.delete(op.id);
         this.leases.delete(op.id);
@@ -373,41 +433,39 @@ export class Room {
   }
 
   /**
-   * Fills a new box with a few example notes ("starter" option). Returns the
-   * ids to save.
+   * Empties the bento: every widget goes, for everyone, along with anyone's
+   * typing in them. Owner only; the client asks them to confirm first.
    */
-  seed(): string[] {
-    const t = this.now();
-    const notes: Array<Pick<Widget, "text" | "color" | "x" | "y" | "w" | "h">> = [
-      {
-        x: 0,
-        y: 0,
-        w: 4,
-        h: 3,
-        color: "tamago",
-        text: "Welcome to the bento 🍱\nClick a note to write in it.",
-      },
-      { x: 4, y: 0, w: 3, h: 3, color: "sake", text: "Drag a note by its body.\nResize from the corner." },
-      { x: 7, y: 0, w: 3, h: 2, color: "edamame", text: "Share the link: everyone types live." },
-    ];
-    const ids: string[] = [];
-    notes.forEach((n, i) => {
-      const id = `starter${i}${this.meta.id}`.slice(0, 24);
-      this.widgets.set(id, {
-        id,
-        kind: "note",
-        size: "m",
-        createdBy: SYSTEM_AUTHOR,
-        createdAt: t + i,
-        updatedAt: t,
-        ...n,
-      });
-      ids.push(id);
-    });
-    return ids;
+  clear(sid: string, opId: string): { out: Outgoing[]; persist: Persist } {
+    const persist: Persist = { now: new Set(), soon: new Set(), removed: new Set() };
+    const denied = this.ownerOnly(sid, opId, "clear it");
+    if (denied) return { out: denied, persist };
+    const remove = [...this.widgets.keys()];
+    const leased = [...this.leases.keys()];
+    this.widgets.clear();
+    this.leases.clear();
+    for (const id of remove) persist.removed.add(id);
+    this.rev++;
+    return {
+      out: [
+        { target: { to: "all" }, msg: { t: "applied", rev: this.rev, by: sid, opId, upsert: [], remove } },
+        ...leased.map((id): Outgoing => ({ target: { to: "all" }, msg: { t: "lease", id, holder: null } })),
+      ],
+      persist,
+    };
   }
 
-  /** Re-packs the box and returns every compartment that moved. */
+  /**
+   * Fills a new box with the base template ("starter" option): one of every
+   * widget, as an example. Returns the ids to save.
+   */
+  seed(): string[] {
+    const widgets = starterBento(this.meta.id, this.now());
+    for (const w of widgets) this.widgets.set(w.id, w);
+    return widgets.map((w) => w.id);
+  }
+
+  /** Re-packs the box and returns every widget that moved. */
   private relayout(anchorId?: string): Widget[] {
     const all = [...this.widgets.values()];
     const before = all.map(({ id, x, y, w, h }) => ({ id, x, y, w, h }));

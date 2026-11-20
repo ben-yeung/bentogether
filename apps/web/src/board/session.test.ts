@@ -74,6 +74,7 @@ async function connect(widgets: Widget[] = []): Promise<[BoxSession, FakeSocket]
     widgets,
     leases: {},
     rev: 0,
+    now: Date.now(),
   });
   return [await ready, ws];
 }

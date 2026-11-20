@@ -78,7 +78,7 @@ describe("findSpot", () => {
 });
 
 describe("changedIds", () => {
-  it("lists only moved compartments", () => {
+  it("lists only moved widgets", () => {
     expect(changedIds([p("a", 0, 0), p("b", 2, 0)], [p("a", 0, 0), p("b", 2, 3)])).toEqual(["b"]);
   });
 });

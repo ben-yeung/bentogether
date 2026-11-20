@@ -1,0 +1,178 @@
+/* Asks inside the shared widget frame: people, or one person's asks. */
+.asks {
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+}
+
+.people,
+.asksList {
+  display: grid;
+  align-content: start;
+  gap: 0.3em;
+}
+
+.person {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.2em;
+}
+
+.personBtn {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5em;
+  min-width: 0;
+  padding: 0.3em 0.45em;
+  border: 0;
+  border-radius: 0.5em;
+  background: color-mix(in srgb, #fff 30%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition: background-color 120ms var(--ease-soft);
+}
+
+.personBtn:hover {
+  background: color-mix(in srgb, #fff 55%, transparent);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 50%;
+  background: var(--lacquer);
+  color: var(--bg);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85em;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.open {
+  font-family: var(--font-mono);
+  font-size: 0.7em;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+}
+
+/* New since you last looked: a counter in the box's accent. */
+.badge {
+  min-width: 1.4em;
+  padding: 0 0.35em;
+  border-radius: 1em;
+  background: var(--shu);
+  color: var(--shu-ink);
+  font-family: var(--font-mono);
+  font-size: 0.7em;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.newCount {
+  flex: none;
+  color: var(--lacquer);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------- one person */
+
+.head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3em;
+  padding-right: 1.6em;
+}
+
+.headName {
+  font-family: var(--font-display);
+  font-size: 1.15em;
+  font-weight: 650;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ask {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.45em;
+}
+
+.check {
+  display: grid;
+  place-items: center;
+  width: 1.05em;
+  height: 1.05em;
+  margin-top: 0.15em;
+  padding: 0;
+  border-radius: 0.3em;
+  border: 1.5px solid color-mix(in srgb, var(--lacquer) 50%, transparent);
+  background: color-mix(in srgb, #fff 40%, transparent);
+  color: var(--bg);
+}
+
+.check svg {
+  width: 0.75em;
+  height: 0.75em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+}
+
+.check[aria-checked="true"] {
+  background: var(--lacquer);
+  border-color: var(--lacquer);
+}
+
+.check[aria-checked="true"] svg {
+  opacity: 1;
+}
+
+.check[aria-disabled="true"] {
+  cursor: inherit;
+}
+
+.askBody {
+  display: grid;
+  min-width: 0;
+}
+
+.askText {
+  overflow-wrap: anywhere;
+}
+
+.ask[data-done] .askText {
+  text-decoration: line-through;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+}
+
+.askBy {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: var(--font-mono);
+  font-size: 0.65em;
+  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .personBtn {
+    transition: none;
+  }
+}

@@ -43,7 +43,7 @@ type Attachment = { sid: string; peer: Peer | null; at?: number };
 /** A connection's rate limits. In memory only: hibernation resets them. */
 type Limits = { all: TokenBucket; op: TokenBucket; settings: TokenBucket; strikes: TokenBucket };
 
-const SETTINGS = new Set(["rename", "retitle", "access", "options", "role"]);
+const SETTINGS = new Set(["rename", "retitle", "access", "options", "role", "clear"]);
 
 /**
  * One Durable Object per box. It owns the box's state (SQLite), holds every
@@ -57,7 +57,7 @@ const SETTINGS = new Set(["rename", "retitle", "access", "options", "role"]);
 export class Box extends DurableObject<Env> {
   private room: Room | null = null;
   private limits = new Map<string, Limits>();
-  /** Compartments changed or removed since the last flush. */
+  /** Widgets changed or removed since the last flush. */
   private dirty = new Set<string>();
   private flushScheduled = false;
   private lastActivity = 0;
@@ -114,12 +114,12 @@ export class Box extends DurableObject<Env> {
   }
 
   /** Public summary: meta, counts, and the colors of who's here (no names). */
-  async meta(): Promise<(BoxMeta & { people: number; compartments: number; hues: number[] }) | null> {
+  async meta(): Promise<(BoxMeta & { people: number; widgetCount: number; hues: number[] }) | null> {
     if (!this.room) return null;
     return {
       ...this.room.meta,
       people: this.room.peers.size,
-      compartments: this.room.widgets.size,
+      widgetCount: this.room.widgets.size,
       hues: [...this.room.peers.values()].map((p) => p.hue),
     };
   }
@@ -291,6 +291,12 @@ export class Box extends DurableObject<Env> {
           }),
         );
         return;
+      case "clear": {
+        const { out, persist } = room.clear(a.sid, msg.opId);
+        this.save(persist);
+        this.dispatch(out);
+        return;
+      }
       case "role": {
         const out = room.setRole(a.sid, msg.opId, msg.sid, msg.role);
         this.saveRoles();
@@ -512,7 +518,7 @@ export class Box extends DurableObject<Env> {
 
   /**
    * Every change is applied in memory and sent to everyone at once; saving
-   * it waits for the next flush. A compartment dragged or retyped many
+   * it waits for the next flush. A widget dragged or retyped many
    * times in that window is written once, so writes follow how much of the
    * board changed, not how many messages arrived.
    */
@@ -543,7 +549,7 @@ export class Box extends DurableObject<Env> {
     if (this.dirty.size > 0) this.scheduleFlush();
   }
 
-  /** Saves a compartment as it is now, or deletes its row if it's gone. */
+  /** Saves a widget as it is now, or deletes its row if it's gone. */
   private write(id: string) {
     const w = this.room?.widgets.get(id);
     if (!w) {

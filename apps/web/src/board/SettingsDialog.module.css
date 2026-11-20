@@ -107,3 +107,44 @@
   height: 2.4rem;
   font-weight: 550;
 }
+
+/* Clearing sits apart at the bottom, in the danger color. */
+.danger {
+  /* The button with its hint beside it; the hint drops below on narrow screens. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--bamboo);
+}
+
+.dangerBtn {
+  flex: none;
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: transparent;
+  color: var(--danger);
+}
+
+.dangerBtn:not([disabled]):hover {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+.confirmText {
+  margin: 0;
+  line-height: 1.45;
+  color: var(--lacquer-soft);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.confirmBtn {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: var(--shu-ink);
+}

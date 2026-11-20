@@ -2,7 +2,7 @@ import { action, createOptimistic, createSignal, For, onSettled, Show } from "so
 import { DEFAULT_BOX_OPTIONS, PERSON_HUES, type BoxOptions, type CreatedBox } from "@bentogether/shared";
 import { Lockup, Mark } from "../brand/Logo";
 import { BoxNotFound, createBox, getBox } from "../lib/api";
-import { createdLabel, notesLabel } from "../lib/format";
+import { createdLabel, widgetsLabel } from "../lib/format";
 import { personVars } from "../lib/identity";
 import { loadDevice, rememberName, saveHue, suggestName, takeHandedOffName } from "../lib/identity";
 import { saveOwnerToken } from "../lib/owner";
@@ -105,8 +105,8 @@ export function Home() {
                   onChange={(v) => setOptions((o) => ({ ...o, autoPack: v }))}
                 />
                 <Switch
-                  label="Starter notes"
-                  hint="Start with our base template."
+                  label="Starter bento"
+                  hint="Start with an example of every widget."
                   checked={starter()}
                   onChange={setStarter}
                 />
@@ -131,7 +131,7 @@ export function Home() {
 function RecentBoxes() {
   const initial = loadRecent();
   const [recent, setRecent] =
-    createSignal<Array<RecentBox & { compartments?: number; hues?: number[] }>>(initial);
+    createSignal<Array<RecentBox & { widgetCount?: number; hues?: number[] }>>(initial);
 
   // Look each one up in the background for its live counts (and its
   // creation date, for entries saved before dates existed).
@@ -147,7 +147,7 @@ function RecentBoxes() {
                     ...b,
                     title: info.title,
                     createdAt: info.createdAt,
-                    compartments: info.compartments,
+                    widgetCount: info.widgetCount,
                     hues: info.hues ?? [],
                   }
                 : b,
@@ -179,7 +179,7 @@ function RecentBoxes() {
                 title={box().title}
                 createdAt={box().createdAt}
                 // A blank line until the counts arrive keeps rows the same height.
-                meta={box().compartments === undefined ? "\u00a0" : notesLabel(box().compartments!)}
+                meta={box().widgetCount === undefined ? "\u00a0" : widgetsLabel(box().widgetCount!)}
                 hues={MOCK_PRESENCE ? mockHues(box().id) : (box().hues ?? [])}
               />
             )}

@@ -6,7 +6,7 @@ export const LOADING_LINES = [
   "Joining the bento…",
   "Opening the lid…",
   "Organizing the bento…",
-  "Arranging the compartments…",
+  "Arranging the widgets…",
   "Unpacking the notes…",
   "Making room for you…",
 ] as const;
