@@ -75,6 +75,8 @@ export function starterBento(boxId: string, now: number): Widget[] {
     const { by, hue } = from(who);
     return { id: sub("evt", i), title, day: null, start: at(days, hh), end: at(days, hh) + mins, by, hue };
   };
+  /** Days from today to this week's Tuesday (0 if today is one, up to 6 ahead). */
+  const tuesday = (2 - new Date(today * DAY_MS).getUTCDay() + 7) % 7;
   const allDay = (i: number, title: string, who: Mate, days: number) => {
     const { by, hue } = from(who);
     return { id: sub("evt", i), title, day: dateIn(days), start: null, end: null, by, hue };
@@ -214,20 +216,22 @@ export function starterBento(boxId: string, now: number): Widget[] {
       kind: "calendar",
       view: { mode: "month", anchor: dateIn(0) },
       events: [
-        // A few that already happened, at fixed offsets from today.
+        // A few that already happened, at fixed offsets from today. The weekly
+        // sync is pinned to Tuesdays (18:00 UTC, a weekday morning or evening
+        // everywhere) so it never lands on a weekend.
         timed(9, "Outing brainstorm", "mochi", -10, 18, 60),
         allDay(10, "Mochi out", "mochi", -4),
-        timed(11, "Weekly sync", "tofu", -6, 18, 45),
+        timed(11, "Weekly sync", "tofu", tuesday - 7, 18, 45),
         timed(12, "Lunch & learn", "kombu", -2, 20, 60),
         allDay(1, "Venue booking due", "mochi", 1),
-        timed(13, "Weekly sync", "tofu", 1, 18, 45),
+        timed(13, "Weekly sync", "tofu", tuesday, 18, 45),
         timed(2, "Kickoff call", "mochi", 2, 17, 30),
         timed(3, "Team lunch", "kombu", 3, 20, 60),
         allDay(4, "Team outing", "yuzu", 5),
-        timed(5, "Weekly sync", "tofu", 8, 18, 45),
+        timed(5, "Weekly sync", "tofu", tuesday + 7, 18, 45),
         timed(6, "Outing retro", "yuzu", 9, 17, 60),
         allDay(7, "Yuzu's birthday 🎂", "tofu", 12),
-        timed(8, "Weekly sync", "tofu", 15, 18, 45),
+        timed(8, "Weekly sync", "tofu", tuesday + 14, 18, 45),
       ],
     },
     {

@@ -5,8 +5,14 @@ import { WidgetFrame, type WidgetProps } from "../../frame/WidgetFrame";
 import { changer, Footer, parts, TitleLine, useAuthor } from "../../frame/parts";
 import styles from "./FreeTimes.module.css";
 
-const ROWS = 48;
-/** Where the grid opens: 8:00, so mornings and evenings are a scroll away. */
+/**
+ * The grid shows the hours people can plausibly meet, 6:00 to 23:00 in each
+ * viewer's own time zone. Rows are half hours since local midnight.
+ */
+const FIRST_ROW = 12;
+const END_ROW = 46;
+const DAY_ROWS = Array.from({ length: END_ROW - FIRST_ROW }, (_, i) => FIRST_ROW + i);
+/** Where the grid opens: 8:00, so early mornings and evenings are a scroll away. */
 const FIRST_VISIBLE_ROW = 16;
 
 type Day = { y: number; m: number; d: number };
@@ -52,36 +58,53 @@ export function FreeTimes(props: WidgetProps) {
   );
 
   /**
-   * Who's free in each slot, in a steady order (yours in place, as you
-   * paint), so each person keeps the same stripe from cell to cell.
+   * Everyone with a lane in the grid, in a steady order: those who answered,
+   * then you once you start painting. Each
+   * person keeps the same lane in every cell, so their free time reads as
+   * one unbroken bar down the day.
    */
+  const lanes = createMemo(() => {
+    const self = s().peers[s().server.sid];
+    const list = rows().map((r) =>
+      r.key === me()
+        ? { key: r.key, name: self?.name ?? r.name, hue: self?.hue ?? r.hue, me: true, bits: r.bits }
+        : { ...r, me: false },
+    );
+    if (paint()?.some(Boolean) && !list.some((l) => l.me))
+      list.push({ key: me(), name: self?.name ?? "you", hue: self?.hue ?? 0, me: true, bits: [] });
+    return list;
+  });
+
+  /** Each lane's free half hours; yours follow your brush while you paint. */
+  const laneBits = createMemo(() => lanes().map((l) => (l.me ? mine() : l.bits)));
+
+  /** How many lanes have any free time: the "everyone" in "everyone's free". */
+  const answered = createMemo(() => laneBits().filter((b) => b.some(Boolean)).length);
+
+  /** Who's free in each slot, in lane order. */
   const freeAt = createMemo(() => {
     const out: Array<Array<{ name: string; hue: number; me: boolean }>> = Array.from(
       { length: FREE_SLOTS },
       () => [],
     );
-    const self = s().peers[s().server.sid];
-    const everyone = rows().some((r) => r.key === me())
-      ? rows()
-      : [...rows(), { key: me(), name: self?.name ?? "you", hue: self?.hue ?? 0, bits: [] as boolean[] }];
-    for (const r of everyone) {
-      const isMe = r.key === me();
-      const bits = isMe ? mine() : r.bits;
-      const who = isMe
-        ? { name: self?.name ?? r.name, hue: self?.hue ?? r.hue, me: true }
-        : { ...r, me: false };
-      bits.forEach((on, i) => on && out[i]!.push({ name: who.name, hue: who.hue, me: who.me }));
-    }
+    const bits = laneBits();
+    lanes().forEach((l, i) =>
+      bits[i]!.forEach((on, slot) => on && out[slot]!.push({ name: l.name, hue: l.hue, me: l.me })),
+    );
     return out;
   });
 
-  /** A cell split into one stripe per person free then, in their colors. */
-  function stripes(who: ReadonlyArray<{ hue: number }>): string | undefined {
-    if (who.length === 0) return undefined;
-    const step = 100 / who.length;
-    const stops = who.map((p, i) => `${personColor(p.hue)} ${i * step}% ${(i + 1) * step}%`);
-    return `linear-gradient(to right, ${stops.join(", ")})`;
-  }
+  /** Slots where everyone who answered (two or more) is free. */
+  const allFree = createMemo(() => freeAt().map((w) => answered() >= 2 && w.length === answered()));
+  const allAt = (slot: number) => slot >= 0 && allFree()[slot] === true;
+
+  /** Days with an all-free slot: their name gets a dot. */
+  const allDays = createMemo(
+    () =>
+      new Set(days().flatMap((d, i) => (DAY_ROWS.some((r) => allAt(cellSlot(startDay(), d, r))) ? [i] : []))),
+  );
+
+  const laneOn = (lane: number, slot: number) => slot >= 0 && laneBits()[lane]?.[slot] === true;
 
   // ------------------------------------------------------------- hover
 
@@ -114,7 +137,7 @@ export function FreeTimes(props: WidgetProps) {
     let top = 0;
     let where: { day: number; row: number } | null = null;
     days().forEach((day, di) => {
-      for (let row = 0; row < ROWS; row++) {
+      for (const row of DAY_ROWS) {
         const slot = cellSlot(startDay(), day, row);
         const n = slot < 0 ? 0 : freeAt()[slot]!.length;
         if (n > top) {
@@ -151,8 +174,9 @@ export function FreeTimes(props: WidgetProps) {
     fill(dayIndex, row);
     s().setPresence({ action: "typing" });
     const over = (ev: PointerEvent) => {
-      const el = document.elementFromPoint(ev.clientX, ev.clientY);
-      if (!(el instanceof HTMLElement) || el.dataset.day === undefined) return;
+      // The pointer is usually over a person's bar; paint the cell holding it.
+      const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>("td[data-day]");
+      if (!el || !wrap?.contains(el)) return;
       fill(Number(el.dataset.day), Number(el.dataset.r));
     };
     const end = () => {
@@ -187,6 +211,14 @@ export function FreeTimes(props: WidgetProps) {
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g, " ");
 
   let scroller: HTMLDivElement | undefined;
+
+  /** Column widths shared by the day-name table and the scrolling grid. */
+  const cols = () => (
+    <colgroup>
+      <col class={styles.corner} />
+      <col span={FREE_DAYS} />
+    </colgroup>
+  );
 
   return (
     <WidgetFrame
@@ -238,6 +270,24 @@ export function FreeTimes(props: WidgetProps) {
       </div>
 
       <div class={styles.wrap} ref={(el) => (wrap = el)}>
+        {/* The day names sit outside the scroller, so nothing scrolls behind them. */}
+        <div class={styles.head} aria-hidden="true">
+          <table class={styles.table}>
+            {cols()}
+            <thead>
+              <tr>
+                <th />
+                <For each={days()}>
+                  {(day, i) => (
+                    <th class={styles.day} data-all={allDays().has(i())}>
+                      {dayLabel(day)}
+                    </th>
+                  )}
+                </For>
+              </tr>
+            </thead>
+          </table>
+        </div>
         <div
           class={styles.scroller}
           data-nodrag
@@ -248,20 +298,14 @@ export function FreeTimes(props: WidgetProps) {
             // Open at 8:00 once the rows are laid out.
             requestAnimationFrame(() => {
               const row = scroller?.querySelector<HTMLElement>(`[data-row-index="${FIRST_VISIBLE_ROW}"]`);
-              if (scroller && row)
-                scroller.scrollTop = row.offsetTop - (scroller.querySelector("thead")?.offsetHeight ?? 0);
+              if (scroller && row) scroller.scrollTop = row.offsetTop;
             });
           }}
         >
           <table class={styles.table} aria-label={`Free times, ${range()}`}>
-            <thead>
-              <tr>
-                <th class={styles.corner} />
-                <For each={days()}>{(day) => <th class={styles.day}>{dayLabel(day)}</th>}</For>
-              </tr>
-            </thead>
+            {cols()}
             <tbody>
-              <For each={Array.from({ length: ROWS }, (_, i) => i)}>
+              <For each={DAY_ROWS}>
                 {(row) => (
                   <tr data-row-index={row} data-hour={row % 2 === 0}>
                     <th class={styles.time} scope="row">
@@ -270,8 +314,11 @@ export function FreeTimes(props: WidgetProps) {
                     <For each={days()}>
                       {(day, dayIndex) => {
                         const slot = () => cellSlot(startDay(), day, row);
+                        const above = () => (row > FIRST_ROW ? cellSlot(startDay(), day, row - 1) : -1);
+                        const below = () => (row < END_ROW - 1 ? cellSlot(startDay(), day, row + 1) : -1);
                         const who = () => (slot() < 0 ? [] : freeAt()[slot()]!);
                         const isMine = () => slot() >= 0 && mine()[slot()] === true;
+                        const all = () => allAt(slot());
                         return (
                           <td
                             class={styles.cell}
@@ -281,26 +328,43 @@ export function FreeTimes(props: WidgetProps) {
                             data-mine={isMine()}
                             data-out={slot() < 0}
                             data-free={who().length > 0}
+                            data-all={all()}
+                            data-all-top={all() && !allAt(above())}
+                            data-all-end={all() && !allAt(below())}
                             data-readonly={props.readOnly}
-                            style={{
-                              "--stripes": stripes(who()),
-                              ...(isMine()
-                                ? { "--mine": personColor(s().peers[s().server.sid]?.hue ?? 0) }
-                                : {}),
-                            }}
+                            style={{ "--heat": answered() ? who().length / answered() : 0 }}
                             aria-label={`${dayLabel(day)} ${timeLabel(row)}: ${
-                              who().length
-                                ? who()
-                                    .map((p) => p.name)
-                                    .join(", ")
-                                : "nobody free"
+                              who().length === 0
+                                ? "nobody free"
+                                : all()
+                                  ? "everyone free"
+                                  : who()
+                                      .map((p) => p.name)
+                                      .join(", ")
                             }`}
                             onPointerMove={(e) => showHover(e, dayIndex(), row)}
                             onPointerDown={(e) => {
                               setHover(null);
                               beginPaint(e, dayIndex(), row);
                             }}
-                          />
+                          >
+                            <span class={styles.lanes} aria-hidden="true">
+                              <For each={lanes()}>
+                                {(l, i) => {
+                                  const on = () => laneOn(i(), slot());
+                                  return (
+                                    <span
+                                      class={styles.lane}
+                                      data-on={on()}
+                                      data-top={on() && !laneOn(i(), above())}
+                                      data-end={on() && !laneOn(i(), below())}
+                                      style={on() ? { "--c": personColor(l.hue) } : undefined}
+                                    />
+                                  );
+                                }}
+                              </For>
+                            </span>
+                          </td>
                         );
                       }}
                     </For>
@@ -360,10 +424,11 @@ export function FreeTimes(props: WidgetProps) {
                 {(r) => <span class={parts.dot} style={personVars(r.hue)} title={r.name} />}
               </For>
             </span>
-            <Show when={best()}>
+            {/* When everyone lines up the grid already shows it in red; only hint at the next best. */}
+            <Show when={best() && best()!.count < answered() ? best() : undefined}>
               {(b) => (
                 <span class={styles.best}>
-                  best: {dayLabel(days()[b().day]!)} {timeLabel(b().row)} ({b().count})
+                  best: {dayLabel(days()[b().day]!)} {timeLabel(b().row)} ({b().count} of {answered()})
                 </span>
               )}
             </Show>
