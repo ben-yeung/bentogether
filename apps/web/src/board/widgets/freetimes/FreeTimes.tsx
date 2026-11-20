@@ -33,7 +33,7 @@ function cellSlot(startDay: number, day: Day, row: number): number {
 
 /**
  * When is everyone free? Each person paints their free half hours over a
- * week; the grid darkens where more people are free. Times are stored in
+ * week; the grid brightens where more people are free. Times are stored in
  * UTC and shown in each viewer's own time zone.
  */
 export function FreeTimes(props: WidgetProps) {
@@ -336,11 +336,9 @@ export function FreeTimes(props: WidgetProps) {
                             aria-label={`${dayLabel(day)} ${timeLabel(row)}: ${
                               who().length === 0
                                 ? "nobody free"
-                                : all()
-                                  ? "everyone free"
-                                  : who()
-                                      .map((p) => p.name)
-                                      .join(", ")
+                                : who()
+                                    .map((p) => p.name)
+                                    .join(", ") + (all() ? " (everyone)" : "")
                             }`}
                             onPointerMove={(e) => showHover(e, dayIndex(), row)}
                             onPointerDown={(e) => {
