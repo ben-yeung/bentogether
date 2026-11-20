@@ -1,7 +1,7 @@
 import { Switch, Match } from "solid-js";
 import styles from "./Pointer.module.css";
 
-export type PointerVariant = "dart" | "hand" | "grab" | "ibeam";
+export type PointerVariant = "dart" | "hand" | "grab" | "ibeam" | "resize";
 
 /**
  * Flat pointer glyphs, colored by `--c`, with the hotspot at the element's
@@ -10,6 +10,7 @@ export type PointerVariant = "dart" | "hand" | "grab" | "ibeam";
  * - hand: over something clickable, the fingertip
  * - grab: carrying a compartment, the palm
  * - ibeam: typing, the center of the beam
+ * - resize: on or dragging a resize corner, the center of the arrow
  */
 export function Pointer(props: { variant: PointerVariant }) {
   return (
@@ -33,6 +34,11 @@ export function Pointer(props: { variant: PointerVariant }) {
       <Match when={props.variant === "ibeam"}>
         <svg class={styles.ibeam} viewBox="0 0 20 20" aria-hidden="true">
           <path d="M6.5 2.5c2 0 3.5.8 3.5 2.2v10.6c0 1.4-1.5 2.2-3.5 2.2M13.5 2.5c-2 0-3.5.8-3.5 2.2v10.6c0 1.4 1.5 2.2 3.5 2.2" />
+        </svg>
+      </Match>
+      <Match when={props.variant === "resize"}>
+        <svg class={styles.resize} viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M3 3 17 17M3 6.5V3h3.5M17 13.5V17h-3.5" />
         </svg>
       </Match>
     </Switch>
