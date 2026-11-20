@@ -110,14 +110,17 @@
 
 /* Clearing sits apart at the bottom, in the danger color. */
 .danger {
-  display: grid;
-  justify-items: start;
-  gap: 0.35rem;
+  /* The button with its hint beside it; the hint drops below on narrow screens. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
   padding-top: 1rem;
   border-top: 1px solid var(--bamboo);
 }
 
 .dangerBtn {
+  flex: none;
   border-color: color-mix(in srgb, var(--danger) 45%, transparent);
   background: transparent;
   color: var(--danger);
