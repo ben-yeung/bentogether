@@ -10,7 +10,8 @@ const TAG_ROOM = 170;
 
 export function variantFor(action: Action | null): PointerVariant {
   if (action === "typing") return "ibeam";
-  if (action === "moving" || action === "resizing") return "grab";
+  if (action === "resizing") return "resize";
+  if (action === "moving") return "grab";
   return "dart";
 }
 
