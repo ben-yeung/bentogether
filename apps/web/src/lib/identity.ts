@@ -71,6 +71,20 @@ export function rememberName(boxId: string, name: string) {
   }
 }
 
+// A name typed on one screen, handed to the next (in-app navigation only):
+// leaving an invite for the home splash keeps you the same person.
+let handoff: string | null = null;
+
+export function handOffName(name: string) {
+  handoff = name.trim() || null;
+}
+
+export function takeHandedOffName(): string | null {
+  const name = handoff;
+  handoff = null;
+  return name;
+}
+
 /** A friendly default, so joining is one keystroke. */
 export function suggestName(): string {
   return INGREDIENT_NAMES[Math.floor(Math.random() * INGREDIENT_NAMES.length)]!;

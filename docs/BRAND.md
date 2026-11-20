@@ -28,13 +28,13 @@ never cluttered.
 
 ## Vocabulary
 
-| Say          | Not                | Why                                     |
-| ------------ | ------------------ | --------------------------------------- |
-| box          | board, workspace   | The board is the bento box.             |
-| compartment  | widget, card, tile | In UI copy. Code can say `widget`.      |
-| note         | sticky, post-it    | The first kind of compartment.          |
-| in the bento | online, active     | Presence: "3 in this bento".            |
-| pack / fill  | create / populate  | Use sparingly, once per screen at most. |
+| Say         | Not                | Why                                     |
+| ----------- | ------------------ | --------------------------------------- |
+| box         | board, workspace   | The board is the bento box.             |
+| compartment | widget, card, tile | In UI copy. Code can say `widget`.      |
+| note        | sticky, post-it    | The first kind of compartment.          |
+| viewing     | online, active     | Presence: "3 people viewing the bento". |
+| pack / fill | create / populate  | Use sparingly, once per screen at most. |
 
 Keep food metaphors to one per screen. The metaphor is the seasoning, not
 the meal.

@@ -2,6 +2,7 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 import { NAME_MAX, TITLE_MAX } from "@bentogether/shared";
 import { HomeLink, Lockup } from "../brand/Logo";
 import { personVars } from "../lib/identity";
+import { viewingLabel } from "../lib/format";
 import type { BoxSession } from "./session";
 import { ShareDialog } from "./ShareDialog";
 import { SettingsDialog } from "./SettingsDialog";
@@ -105,7 +106,7 @@ export function Toolbar(props: {
         </Show>
       </div>
 
-      <div class={styles.people} aria-label={`${people().length} in this bento`}>
+      <div class={styles.people} aria-label={viewingLabel(people().length, { includesYou: true })}>
         <ul class={styles.faces}>
           <For each={people()} keyed={(p) => p.sid}>
             {(p) => (
@@ -119,7 +120,7 @@ export function Toolbar(props: {
             )}
           </For>
         </ul>
-        <span class={styles.count}>{people().length} in this bento</span>
+        <span class={styles.count}>{viewingLabel(people().length, { includesYou: true })}</span>
       </div>
 
       <Show

@@ -8,7 +8,7 @@ import styles from "./ShareDialog.module.css";
 const ROLE_LABEL: Record<AssignableRole, string> = { editor: "Can edit", viewer: "Can view" };
 
 /**
- * Share, Drive-style: the link to copy, who's in the bento and what each of
+ * Share, Drive-style: the link to copy, who's viewing the bento and what each of
  * them can do, what new visitors can do, and who can get in at all (anyone
  * with the link, or only with a password). Everyone can open it; only the
  * creator can change anything, and the server enforces that.
@@ -103,7 +103,7 @@ function ShareBody(props: {
 
       <section class={styles.section} aria-labelledby="share-people">
         <h3 id="share-people" class={styles.sectionLabel}>
-          In this bento
+          Viewing the bento
         </h3>
         <ul class={styles.people}>
           <For each={people()} keyed={(p) => p.sid}>

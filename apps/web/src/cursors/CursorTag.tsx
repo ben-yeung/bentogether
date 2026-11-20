@@ -1,4 +1,4 @@
-import { createEffect, createSignal, Show } from "solid-js";
+import { createEffect, createSignal, onSettled, Show } from "solid-js";
 import styles from "./CursorTag.module.css";
 
 const TYPE_MS = 34;
@@ -41,13 +41,18 @@ export function CursorTag(props: {
     },
   );
 
-  // Size the pill to its content on every typed character.
-  createEffect(
-    () => [shown(), props.name],
-    () => {
-      tag.style.setProperty("--w", `${inner.offsetWidth}px`);
-    },
-  );
+  // Size the pill to its content. A ResizeObserver on the content catches
+  // every typed character and also anything else that changes the text's
+  // width: the fluid root font-size scaling with the viewport, or the mono
+  // webfont swapping in after first paint.
+  onSettled(() => {
+    // Fractional width, rounded up: offsetWidth rounds and can clip a sliver.
+    const fit = () => tag.style.setProperty("--w", `${Math.ceil(inner.getBoundingClientRect().width)}px`);
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(inner);
+    return () => ro.disconnect();
+  });
 
   return (
     <div ref={tag} class={styles.tag} data-flip-x={props.flipX} data-animate={!props.reduceMotion}>

@@ -4,7 +4,7 @@ import { Lockup, Mark } from "../brand/Logo";
 import { BoxNotFound, createBox, getBox } from "../lib/api";
 import { createdLabel, notesLabel } from "../lib/format";
 import { personVars } from "../lib/identity";
-import { loadDevice, rememberName, saveHue, suggestName } from "../lib/identity";
+import { loadDevice, rememberName, saveHue, suggestName, takeHandedOffName } from "../lib/identity";
 import { saveOwnerToken } from "../lib/owner";
 import { forgetBox, loadRecent, setCreatedAt, type RecentBox } from "../lib/recent";
 import { navigate } from "../lib/router";
@@ -24,7 +24,7 @@ export function Home() {
   const { push, Toasts } = createToaster();
 
   // Picked once: a JSX expression would re-run and swap the name under you.
-  const suggested = suggestName();
+  const suggested = takeHandedOffName() ?? suggestName();
   const [hue, setHue] = createSignal(device.hue);
   const [options, setOptions] = createSignal<BoxOptions>({ ...DEFAULT_BOX_OPTIONS });
   const [starter, setStarter] = createSignal(true);

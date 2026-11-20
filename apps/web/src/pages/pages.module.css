@@ -82,6 +82,13 @@
   margin-bottom: 1.5rem;
 }
 
+.homeLink {
+  justify-self: start;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
 .tagline {
   margin: 0;
   font-family: var(--font-display);

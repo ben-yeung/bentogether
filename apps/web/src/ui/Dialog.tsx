@@ -6,12 +6,18 @@ import styles from "./Dialog.module.css";
  * A centered modal over a soft backdrop. The X (top right), Esc or a click
  * outside closes it,
  * focus moves into it on open and back to whatever had it on close.
+ *
+ * `panelClass` replaces the panel's look entirely, so a dialog can be its
+ * own surface (the Add picker is the bento box itself); `closeClass` places
+ * the X on it.
  */
 export function Dialog(props: {
   open: boolean;
   onClose: () => void;
   label: string;
   size?: "sm" | "md";
+  panelClass?: string | undefined;
+  closeClass?: string | undefined;
   children: JSX.Element;
 }) {
   return (
@@ -27,6 +33,8 @@ function DialogBody(props: {
   onClose: () => void;
   label: string;
   size?: "sm" | "md";
+  panelClass?: string | undefined;
+  closeClass?: string | undefined;
   children: JSX.Element;
 }) {
   let panel!: HTMLElement;
@@ -53,7 +61,7 @@ function DialogBody(props: {
     <div class={styles.backdrop} onPointerDown={(e) => e.target === e.currentTarget && props.onClose()}>
       <section
         ref={panel}
-        class={styles.panel}
+        class={props.panelClass ?? styles.panel}
         data-size={props.size ?? "md"}
         role="dialog"
         aria-modal="true"
@@ -62,7 +70,7 @@ function DialogBody(props: {
         {props.children}
         <button
           type="button"
-          class={["icon-btn", styles.close]}
+          class={["icon-btn", styles.close, props.closeClass]}
           aria-label="Close"
           onClick={() => props.onClose()}
         >
