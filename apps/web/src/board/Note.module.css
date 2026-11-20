@@ -129,6 +129,8 @@
   height: 1.7em;
   margin-left: auto;
   flex: none;
+  /* Anchors the folded palette. */
+  position: relative;
   font-family: var(--font-ui);
   font-size: calc(var(--u) * 14);
   opacity: 0;
@@ -167,6 +169,52 @@
   background: var(--ing-shiso);
 }
 
+/* The folded picker: one dot in the current color. A ring hints that it
+   opens something, unlike a plain swatch. */
+.swatch[data-dot] {
+  width: 1em;
+  height: 1em;
+  border-color: color-mix(in srgb, var(--lacquer) 55%, transparent);
+}
+
+.swatch[data-dot][aria-expanded="true"] {
+  border-color: var(--lacquer);
+  box-shadow:
+    0 0 0 1.5px var(--bg),
+    0 0 0 3px var(--lacquer);
+}
+
+/* The swatches unfolded above the dot, kept inside the note: it grows
+   leftward from the toolbar's right edge. */
+.palette {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.4em);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.5em 0.6em;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid color-mix(in srgb, var(--lacquer) 14%, transparent);
+  box-shadow: 0 0.3em 0.9em color-mix(in srgb, var(--lacquer) 18%, transparent);
+  animation: palette-in 140ms var(--ease-soft);
+}
+
+@keyframes palette-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.25em);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palette {
+    animation: none;
+  }
+}
+
 .swatch[aria-pressed="true"] {
   border-color: var(--lacquer);
   box-shadow:
@@ -178,7 +226,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.3em;
-  margin-left: 0.3em;
+  margin-right: 0.3em;
   height: 1.6em;
   padding: 0 0.5em;
   border: 0;
@@ -274,6 +322,7 @@
 
 .body {
   min-height: 0;
+  min-width: 0;
   overflow: hidden;
   position: relative;
 }
@@ -287,11 +336,36 @@
   overflow-wrap: anywhere;
   margin: 0;
   padding: 0;
+  /* No scrollbar gutter: it would steal width and change line wraps between
+     reading and typing, and between viewers on different systems. */
+  scrollbar-width: none;
 }
 
+.text::-webkit-scrollbar,
+.input::-webkit-scrollbar {
+  display: none;
+}
+
+/* Text longer than the note scrolls rather than being cut off, and fades
+   at whichever edge has more below or above it. */
 .text {
+  position: relative;
   height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.text[data-more~="below"] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 1.6em), transparent);
+}
+
+.text[data-more~="above"] {
+  mask-image: linear-gradient(to top, #000 calc(100% - 1.6em), transparent);
+}
+
+.text[data-more~="above"][data-more~="below"] {
+  mask-image: linear-gradient(to bottom, transparent, #000 1.6em, #000 calc(100% - 1.6em), transparent);
 }
 
 .input {
@@ -381,6 +455,7 @@
 
 .byline {
   min-width: 0;
+  flex: 0 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
 }

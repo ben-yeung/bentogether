@@ -28,6 +28,9 @@
   "vars": {
     // Comma-separated origin patterns; `*` matches one DNS label fragment.
     "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+    // Local only: enables /__dev/* (simulate running out of free quota).
+    // `env.production` doesn't inherit vars, so it is never set there.
+    "DEV_TOOLS": "1",
   },
   "env": {
     "production": {

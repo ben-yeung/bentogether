@@ -114,3 +114,14 @@ export function originAllowed(origin: string | null, allowlist: string): boolean
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+/**
+ * True for the errors Cloudflare throws once the free plan's daily quota is
+ * used up, e.g. "Exceeded allowed volume of requests in Durable Objects free
+ * tier" or "Exceeded allowed rows written in Durable Objects free tier".
+ * They reset at 00:00 UTC.
+ */
+export function isQuotaError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /exceeded allowed|free tier|storage limit/i.test(message);
+}

@@ -34,6 +34,7 @@ import {
   WRITE_BURST,
   WRITE_RATE,
   ipKey,
+  isQuotaError,
 } from "./limits";
 
 /** Survives hibernation on each socket. `at` is when it connected. */
@@ -143,7 +144,7 @@ export class Box extends DurableObject<Env> {
     if (!this.room) {
       server.close(CLOSE.notFound, "This bento doesn't exist");
     } else if (this.room.peers.size >= MAX_PEERS || total >= MAX_SOCKETS) {
-      server.close(CLOSE.tooMany, "This table is full");
+      server.close(CLOSE.tooMany, "This bento is full");
     } else if (fromIp >= MAX_SOCKETS_PER_IP) {
       server.close(CLOSE.tooMany, "Too many tabs open on this bento");
     } else {
@@ -153,6 +154,29 @@ export class Box extends DurableObject<Env> {
   }
 
   override async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
+    try {
+      await this.handle(ws, data);
+    } catch (err) {
+      if (!isQuotaError(err)) throw err;
+      // Out of daily quota: changes can't be saved, so say so to everyone
+      // rather than letting them keep typing into a box that won't keep it.
+      console.error("over capacity", err);
+      this.closeAllOverCapacity();
+    }
+  }
+
+  /** Ends every session in this box with `CLOSE.overCapacity`. Also used by `/__dev` locally. */
+  async closeAllOverCapacity() {
+    for (const s of this.ctx.getWebSockets()) {
+      try {
+        s.close(CLOSE.overCapacity, "over_capacity");
+      } catch {
+        // already closing
+      }
+    }
+  }
+
+  private async handle(ws: WebSocket, data: string | ArrayBuffer) {
     const room = this.room;
     const a = ws.deserializeAttachment() as Attachment | null;
     if (!room || !a) return;
@@ -300,7 +324,7 @@ export class Box extends DurableObject<Env> {
 
   override async alarm() {
     this.flushScheduled = false;
-    this.flush();
+    this.flushSafely();
     if (this.room) this.closeSilent();
   }
 
@@ -311,7 +335,22 @@ export class Box extends DurableObject<Env> {
     if (!a || !this.room) return;
     this.limits.delete(a.sid);
     this.dispatch(this.room.leave(a.sid), ws);
-    if (this.room.peers.size === 0) this.flush(true);
+    if (this.room.peers.size === 0) this.flushSafely(true);
+  }
+
+  /**
+   * Saving happens here rather than in the message handler, so this is where
+   * running out of daily quota shows up. Same answer as there: tell everyone.
+   * Unsaved changes stay pending for the next flush.
+   */
+  private flushSafely(all = false) {
+    try {
+      this.flush(all);
+    } catch (err) {
+      if (!isQuotaError(err)) throw err;
+      console.error("over capacity", err);
+      void this.closeAllOverCapacity();
+    }
   }
 
   /** Closes sockets that connected but never said hello. */

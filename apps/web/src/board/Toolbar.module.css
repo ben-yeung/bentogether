@@ -13,6 +13,10 @@
 }
 
 .home {
+  /* Flex, not inline: an inline link adds descender space under the
+     lockup, which would sit it above the rest of the bar's centerline. */
+  display: flex;
+  align-items: center;
   color: inherit;
   text-decoration: none;
   border-radius: 8px;
@@ -207,27 +211,40 @@
   white-space: nowrap;
 }
 
-/* On phones the faces say who's here; the group's aria-label keeps the count. */
+/* The first thing to go when the bar runs short of room (see Toolbar.tsx),
+   before the title truncates or the bar wraps. */
+.count[data-hidden] {
+  display: none;
+}
+
+/*
+ * On phones: the logo, faces, Share and settings keep the top row, actions
+ * pinned right; the title and author drop to a full-width row beneath, so
+ * the title gets the whole width instead of being squeezed. The faces say
+ * who's here; the group's aria-label keeps the count.
+ */
 @media (max-width: 40rem) {
+  .bar {
+    row-gap: 0.5rem;
+  }
+
   .count {
     display: none;
   }
-}
 
-.dot {
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 50%;
-  background: var(--c);
-}
+  .people {
+    margin-left: auto;
+  }
 
-.nameForm {
-  display: contents;
-}
+  .title {
+    order: 1;
+    flex-basis: 100%;
+  }
 
-.nameInput {
-  width: 10rem;
-  font-weight: 550;
+  /* Title on the left, author on the right of that row. */
+  .byline {
+    margin-left: auto;
+  }
 }
 
 @keyframes pop {

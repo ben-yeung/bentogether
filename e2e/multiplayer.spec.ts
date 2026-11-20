@@ -32,7 +32,7 @@ async function join(page: Page, url: string, name: string) {
   await page.goto(url);
   await expect(page.getByRole("dialog", { name: "Join this bento" })).toBeVisible();
   await page.getByLabel("Your name").fill(name);
-  await page.getByRole("button", { name: "Join the table" }).click();
+  await page.getByRole("button", { name: "Join the bento" }).click();
 }
 
 test("a note added and typed by one person appears live for another", async ({ browser }) => {
@@ -100,7 +100,8 @@ test("a joiner's name is per box and remembered on reload", async ({ browser }) 
   await expect(a.getByTitle("Shiso")).toBeVisible();
   await b.reload();
   await expect(b.getByRole("dialog", { name: "Join this bento" })).toHaveCount(0);
-  await expect(b.getByRole("button", { name: "Change your name" })).toContainText("Shiso");
+  await b.getByRole("button", { name: "Bento settings" }).click();
+  await expect(b.getByLabel("Your name")).toHaveValue("Shiso");
 });
 
 test("people on different screen sizes see the same box, scaled", async ({ browser }) => {
@@ -197,11 +198,11 @@ test("a password protected bento asks newcomers for the password", async ({ brow
   await b.goto(a.url());
   await b.getByLabel("Your name").fill("Guest");
   await b.getByLabel("Password").fill("wrong-one");
-  await b.getByRole("button", { name: "Join the table" }).click();
+  await b.getByRole("button", { name: "Join the bento" }).click();
   await expect(b.getByText("That password didn't work.")).toBeVisible();
 
   await b.getByLabel("Password").fill("onigiri");
-  await b.getByRole("button", { name: "Join the table" }).click();
+  await b.getByRole("button", { name: "Join the bento" }).click();
   await expect(b.getByText("2 people viewing the bento")).toBeVisible();
 
   // The creator never needs it.
