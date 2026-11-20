@@ -3,6 +3,16 @@ export function notesLabel(compartments: number): string {
   return `${compartments} ${compartments === 1 ? "note" : "notes"}`;
 }
 
+/**
+ * Presence: "3 people viewing the bento". `includesYou` is for counts that
+ * count you too (inside the box), so being alone reads "Just you…".
+ */
+export function viewingLabel(people: number, opts: { includesYou?: boolean } = {}): string {
+  if (opts.includesYou && people <= 1) return "Just you viewing the bento";
+  if (people === 0) return "Nobody's viewing the bento yet";
+  return `${people} ${people === 1 ? "person" : "people"} viewing the bento`;
+}
+
 const SHORT_DATE = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const LONG_DATE = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
 

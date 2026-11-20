@@ -207,6 +207,13 @@
   white-space: nowrap;
 }
 
+/* On phones the faces say who's here; the group's aria-label keeps the count. */
+@media (max-width: 40rem) {
+  .count {
+    display: none;
+  }
+}
+
 .dot {
   width: 0.7rem;
   height: 0.7rem;
