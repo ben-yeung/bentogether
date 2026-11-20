@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import {
   NOTE_COLORS,
   NOTE_TEXT_MAX,
@@ -14,8 +14,13 @@ import styles from "./Note.module.css";
 
 const SIZE_LABEL: Record<TextSize, string> = { s: "Small", m: "Medium", l: "Large", xl: "Extra large" };
 const SIZE_SHORT: Record<TextSize, string> = { s: "S", m: "M", l: "L", xl: "XL" };
+/** Shown on hover; "XL" rather than "Extra large" so it fits narrow notes. */
+const SIZE_SHOWN: Record<TextSize, string> = { ...SIZE_LABEL, xl: "XL" };
 
 export type NoteMode = "rest" | "lifted" | "remote-lifted";
+
+/** Notes this many columns wide or narrower fold the swatches into one dot. */
+const COMPACT_TOOLS_MAX_W = 2;
 
 const COLOR_LABEL: Record<NoteColor, string> = {
   tamago: "Tamago yellow",
@@ -161,6 +166,40 @@ export function Note(props: {
     }
   }
 
+  /*
+   * Narrow notes can't fit six swatches beside the text-size button, so the
+   * swatches fold into one dot showing the current color, which opens a
+   * small palette. Decided in grid columns, not pixels, so it's the same
+   * for every viewer at any screen size.
+   */
+  const compact = () => props.rect.w <= COMPACT_TOOLS_MAX_W;
+  const [paletteOpen, setPaletteOpen] = createSignal(false);
+  let dot: HTMLButtonElement | undefined;
+  createEffect(compact, (c) => {
+    if (!c) setPaletteOpen(false);
+  });
+
+  function swatch(c: NoteColor, inPalette = false) {
+    return (
+      <button
+        type="button"
+        class={styles.swatch}
+        data-swatch={c}
+        aria-label={`Color: ${COLOR_LABEL[c]}`}
+        aria-pressed={s().color(props.id) === c ? "true" : "false"}
+        onClick={() => {
+          if (inPalette) {
+            setPaletteOpen(false);
+            dot?.focus();
+          }
+          s()
+            .recolor(props.id, c)
+            .catch((err: Error) => props.onError(err.message));
+        }}
+      />
+    );
+  }
+
   // Starter notes are signed by the box itself, shown as "bento".
   const author = createMemo(() => {
     const by = s().widget(props.id)?.createdBy ?? "";
@@ -189,12 +228,16 @@ export function Note(props: {
       }}
       data-readonly={props.readOnly}
       onPointerDown={(e) => {
-        if (props.readOnly || editing() || (e.target as Element).closest("button, textarea, [data-resize]"))
+        if (
+          props.readOnly ||
+          editing() ||
+          (e.target as Element).closest("button, textarea, [data-resize], [data-palette]")
+        )
           return;
         props.onPointerDown(e, "move");
       }}
       onClick={(e) => {
-        if ((e.target as Element).closest("button, textarea, [data-resize]")) return;
+        if ((e.target as Element).closest("button, textarea, [data-resize], [data-palette]")) return;
         if (e.detail > 0 && e.currentTarget.dataset.dragged === "true") return;
         void startEditing();
       }}
@@ -253,23 +296,22 @@ export function Note(props: {
           )}
         </Show>
         <Show when={!props.readOnly}>
-          <div class={styles.tools} data-intent="tools">
-            <For each={NOTE_COLORS}>
-              {(c) => (
-                <button
-                  type="button"
-                  class={styles.swatch}
-                  data-swatch={c}
-                  aria-label={`Color: ${COLOR_LABEL[c]}`}
-                  aria-pressed={s().color(props.id) === c ? "true" : "false"}
-                  onClick={() =>
-                    s()
-                      .recolor(props.id, c)
-                      .catch((err: Error) => props.onError(err.message))
-                  }
-                />
-              )}
-            </For>
+          <div
+            class={styles.tools}
+            data-intent="tools"
+            data-compact={compact()}
+            onFocusOut={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setPaletteOpen(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && paletteOpen()) {
+                e.preventDefault();
+                e.stopPropagation();
+                setPaletteOpen(false);
+                dot?.focus();
+              }
+            }}
+          >
             <button
               type="button"
               class={styles.sizeBtn}
@@ -286,9 +328,28 @@ export function Note(props: {
               <span aria-hidden="true">Aa</span>
               <span class={styles.sizeTag} aria-hidden="true">
                 <span class={styles.sizeShort}>{SIZE_SHORT[s().textSize(props.id)]}</span>
-                <span class={styles.sizeFull}>{SIZE_LABEL[s().textSize(props.id)]}</span>
+                <span class={styles.sizeFull}>{SIZE_SHOWN[s().textSize(props.id)]}</span>
               </span>
             </button>
+            <Show when={compact()} fallback={<For each={NOTE_COLORS}>{(c) => swatch(c)}</For>}>
+              <button
+                ref={dot}
+                type="button"
+                class={styles.swatch}
+                data-swatch={s().color(props.id)}
+                data-dot
+                aria-label={`Color: ${COLOR_LABEL[s().color(props.id)]}. Change`}
+                aria-haspopup="true"
+                aria-expanded={paletteOpen() ? "true" : "false"}
+                title="Color"
+                onClick={() => setPaletteOpen((o) => !o)}
+              />
+              <Show when={paletteOpen()}>
+                <div class={styles.palette} data-palette role="group" aria-label="Note color">
+                  <For each={NOTE_COLORS}>{(c) => swatch(c, true)}</For>
+                </div>
+              </Show>
+            </Show>
           </div>
         </Show>
       </footer>
@@ -330,8 +391,43 @@ function NoteText(props: {
     const b = Math.min(Math.max(c.start, c.end), t.length);
     return { before: t.slice(0, a), sel: t.slice(a, b), after: t.slice(b) };
   });
+
+  // When the text outgrows the note it scrolls; mark which edges have more
+  // so they fade, and keep another person's caret in view as they type.
+  let el!: HTMLDivElement;
+  const [more, setMore] = createSignal("");
+  onSettled(() => {
+    const edges = () => {
+      const at = [];
+      if (el.scrollTop > 1) at.push("above");
+      if (el.scrollTop + el.clientHeight < el.scrollHeight - 1) at.push("below");
+      setMore(at.join(" "));
+    };
+    const measure = () => {
+      const caret = el.querySelector<HTMLElement>(`.${styles.caret}`);
+      if (caret) {
+        const top = caret.offsetTop;
+        const bottom = top + caret.offsetHeight;
+        if (top < el.scrollTop) el.scrollTop = top;
+        else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight;
+      }
+      edges();
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    const mo = new MutationObserver(measure);
+    mo.observe(el, { childList: true, subtree: true, characterData: true });
+    el.addEventListener("scroll", edges, { passive: true });
+    measure();
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+      el.removeEventListener("scroll", edges);
+    };
+  });
+
   return (
-    <div class={styles.text} data-empty={props.text.length === 0}>
+    <div ref={el} class={styles.text} data-empty={props.text.length === 0} data-more={more() || undefined}>
       <Show
         when={parts()}
         fallback={props.text || <span class={styles.placeholder}>{props.placeholder}</span>}
