@@ -244,7 +244,8 @@ export type ServerMessage =
   | { t: "pong" }
   | { t: "error"; code: ErrorCode; message: string };
 
-export type RejectCode = "not_found" | "exists" | "leased" | "invalid" | "limit" | "forbidden";
+export type RejectCode =
+  "not_found" | "exists" | "leased" | "invalid" | "limit" | "forbidden" | "rate_limited";
 export type ErrorCode = "bad_message" | "rate_limited" | "not_ready" | "version";
 
 /** WebSocket close codes in the 4000 range (application-defined). */

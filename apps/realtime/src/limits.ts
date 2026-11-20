@@ -1,7 +1,6 @@
 /**
- * Token bucket per connection. Presence is chatty by design (20 Hz cursor
- * updates), so the bucket allows that comfortably and stops a runaway or
- * hostile client from flooding the room or the bill.
+ * Token bucket. Refills at `ratePerSec` up to `burst`; each `take` spends
+ * `cost` tokens if there are enough.
  */
 export class TokenBucket {
   private tokens: number;
@@ -25,15 +24,79 @@ export class TokenBucket {
   }
 }
 
+// Per connection. Presence is chatty by design (20 Hz cursors), edits less
+// so (typing patches every 80 ms), settings rarely. Each limit sits well
+// above what the web client sends, so only a runaway or hostile client
+// ever meets one.
+
 /** Messages per second a connection may send, all kinds together. */
 export const MESSAGE_RATE = 60;
 export const MESSAGE_BURST = 120;
-/** Strikes (dropped messages) before the connection is closed. */
-export const MAX_STRIKES = 200;
+/** Board edits (`op`) per second. */
+export const OP_RATE = 20;
+export const OP_BURST = 40;
+/** Rename, retitle, options, access and role changes per second. */
+export const SETTINGS_RATE = 1;
+export const SETTINGS_BURST = 5;
+/**
+ * Dropped messages a connection may rack up before it's closed. Refills, so
+ * an occasional burst is forgiven but a client that keeps pushing past the
+ * limits is cut off within a few seconds.
+ */
+export const STRIKE_RATE = 10;
+export const STRIKE_BURST = 200;
+
+/** Largest message accepted. A full note is ~2,000 characters; this leaves room for escaping. */
+export const MAX_MESSAGE_BYTES = 32 * 1024;
+
+// Per box.
+
+/** Open sockets of any kind. Peers are capped separately; this also covers sockets that haven't said hello. */
+export const MAX_SOCKETS = 40;
+/** Open sockets from one address (IPv6 counted per /64). */
+export const MAX_SOCKETS_PER_IP = 8;
+/** A socket that hasn't said hello by now is closed. */
+export const HELLO_TIMEOUT_MS = 10_000;
+/** Owner password changes: each one costs a deliberately slow hash. */
+export const PASSWORD_SET_RATE = 1 / 3;
+export const PASSWORD_SET_BURST = 3;
+/**
+ * SQLite rows a box may write per second while it's busy. Changes are held
+ * in memory and flushed on a timer; under heavy edits the flush writes this
+ * many and leaves the rest for the next one. Once edits pause, everything
+ * left is written at once, so nothing is lost before the box hibernates.
+ */
+export const WRITE_RATE = 5;
+export const WRITE_BURST = 600;
+/** How often pending changes are flushed. */
+export const FLUSH_MS = 1500;
+/** No messages for this long counts as idle, and the next flush writes everything. */
+export const IDLE_MS = 2000;
 
 /**
- * Origin allowlist with `*` wildcards, e.g. `https://bentogether-*.vercel.app`
- * for preview deployments.
+ * The key a client's address is counted under. IPv6 is cut to its /64,
+ * since one connection usually holds a whole /64 and can rotate within it.
+ */
+export function ipKey(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  const [head = "", tail] = ip.toLowerCase().split("::") as [string, string | undefined];
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups =
+    tail === undefined
+      ? left
+      : [...left, ...Array<string>(8 - left.length - right.length).fill("0"), ...right];
+  return groups
+    .slice(0, 4)
+    .map((g) => g.replace(/^0+(?=.)/, ""))
+    .join(":")
+    .concat("::/64");
+}
+
+/**
+ * Origin allowlist with `*` wildcards, e.g. `https://*.example.com`. Keep
+ * patterns narrow: anyone who can serve a page from a matching origin can
+ * drive visitors' browsers at the API.
  */
 export function originAllowed(origin: string | null, allowlist: string): boolean {
   if (!origin) return false;

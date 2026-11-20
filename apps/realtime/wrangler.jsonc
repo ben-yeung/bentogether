@@ -18,6 +18,12 @@
     // Box creation per IP. Generous locally (tests and dev scripts all share
     // one IP); `env.production` below enforces the real limit.
     { "name": "CREATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 1000, "period": 60 } },
+    // WebSocket upgrades per IP, so reconnecting can't reset a box's
+    // per-connection limits. Reconnects back off up to 8 s, so 30 a minute
+    // leaves a lot of room for several tabs.
+    { "name": "CONNECT_LIMITER", "namespace_id": "1002", "simple": { "limit": 1000, "period": 60 } },
+    // Box lookups per IP. Home looks up at most 24 recent bentos at once.
+    { "name": "META_LIMITER", "namespace_id": "1003", "simple": { "limit": 1000, "period": 60 } },
   ],
   "vars": {
     // Comma-separated origin patterns; `*` matches one DNS label fragment.
@@ -27,13 +33,17 @@
     "production": {
       "name": "bentogether-realtime",
       "vars": {
-        "ALLOWED_ORIGINS": "https://bentogether.vercel.app,https://bentogether-*.vercel.app",
+        // Production only. A wildcard like `bentogether-*.vercel.app` would
+        // match any Vercel project whose name starts with `bentogether-`.
+        "ALLOWED_ORIGINS": "https://bentogether.vercel.app",
       },
       "durable_objects": {
         "bindings": [{ "name": "BOX", "class_name": "Box" }],
       },
       "ratelimits": [
         { "name": "CREATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+        { "name": "CONNECT_LIMITER", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
+        { "name": "META_LIMITER", "namespace_id": "1003", "simple": { "limit": 120, "period": 60 } },
       ],
     },
   },
