@@ -2,7 +2,8 @@
 .dart,
 .hand,
 .grab,
-.ibeam {
+.ibeam,
+.resize {
   position: absolute;
   overflow: visible;
   transform-origin: 0 0;
@@ -31,6 +32,13 @@
   height: 1.2rem;
 }
 
+.resize {
+  left: -0.6rem;
+  top: -0.6rem;
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
 .ibeam {
   left: -0.6rem;
   top: -0.6rem;
@@ -47,9 +55,11 @@
   stroke-linejoin: round;
 }
 
-.ibeam path {
+.ibeam path,
+.resize path {
   fill: none;
   stroke: var(--c);
   stroke-width: 2.2;
   stroke-linecap: round;
+  stroke-linejoin: round;
 }
