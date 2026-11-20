@@ -13,13 +13,37 @@ import {
   type Widget,
 } from "@bentogether/shared";
 import { Room, MAX_PEERS, type Outgoing, type Persist } from "./room";
-import { isQuotaError, MAX_STRIKES, MESSAGE_BURST, MESSAGE_RATE, TokenBucket } from "./limits";
+import {
+  FLUSH_MS,
+  HELLO_TIMEOUT_MS,
+  IDLE_MS,
+  MAX_MESSAGE_BYTES,
+  MAX_SOCKETS,
+  MAX_SOCKETS_PER_IP,
+  MESSAGE_BURST,
+  MESSAGE_RATE,
+  OP_BURST,
+  OP_RATE,
+  PASSWORD_SET_BURST,
+  PASSWORD_SET_RATE,
+  SETTINGS_BURST,
+  SETTINGS_RATE,
+  STRIKE_BURST,
+  STRIKE_RATE,
+  TokenBucket,
+  WRITE_BURST,
+  WRITE_RATE,
+  ipKey,
+  isQuotaError,
+} from "./limits";
 
-/** Text typed into notes is saved at most this often. */
-const TEXT_FLUSH_MS = 1500;
+/** Survives hibernation on each socket. `at` is when it connected. */
+type Attachment = { sid: string; peer: Peer | null; at?: number };
 
-/** Survives hibernation on each socket. */
-type Attachment = { sid: string; peer: Peer | null };
+/** A connection's rate limits. In memory only: hibernation resets them. */
+type Limits = { all: TokenBucket; op: TokenBucket; settings: TokenBucket; strikes: TokenBucket };
+
+const SETTINGS = new Set(["rename", "retitle", "access", "options", "role"]);
 
 /**
  * One Durable Object per box. It owns the box's state (SQLite), holds every
@@ -32,13 +56,19 @@ type Attachment = { sid: string; peer: Peer | null };
  */
 export class Box extends DurableObject<Env> {
   private room: Room | null = null;
-  private buckets = new Map<string, TokenBucket>();
-  private strikes = new Map<string, number>();
-  private pendingText = new Set<string>();
+  private limits = new Map<string, Limits>();
+  /** Compartments changed or removed since the last flush. */
+  private dirty = new Set<string>();
+  private flushScheduled = false;
+  private lastActivity = 0;
+  private writes = new TokenBucket(WRITE_RATE, WRITE_BURST, Date.now());
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
+      // Looking up an id that was never created must not leave storage
+      // behind, so only boxes that exist get their tables touched.
+      if (!this.exists()) return;
       this.migrate();
       this.room = this.load();
       if (this.room) {
@@ -67,6 +97,7 @@ export class Box extends DurableObject<Env> {
     creator?: { name: string; hue: number };
   }): Promise<CreatedBox | null> {
     if (this.room) return null;
+    this.migrate();
     const meta: BoxMeta = {
       id: input.id,
       title: input.title,
@@ -99,16 +130,25 @@ export class Box extends DurableObject<Env> {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected a WebSocket upgrade", { status: 426 });
     }
+    // Cloudflare sets this header itself; clients can't forge it.
+    const ip = ipKey(request.headers.get("CF-Connecting-IP") ?? "local");
+    if (this.room) this.closeSilent();
+    // Sockets just closed by the sweep above are still listed until they finish closing.
+    const isOpen = (ws: WebSocket) => ws.readyState === WebSocket.OPEN;
+    const total = this.ctx.getWebSockets().filter(isOpen).length;
+    const fromIp = this.ctx.getWebSockets(ip).filter(isOpen).length;
     const { 0: client, 1: server } = new WebSocketPair();
-    this.ctx.acceptWebSocket(server);
+    this.ctx.acceptWebSocket(server, [ip]);
     // Refuse after accepting, so the browser gets a close code it can show
     // instead of an opaque failed handshake.
     if (!this.room) {
       server.close(CLOSE.notFound, "This bento doesn't exist");
-    } else if (this.room.peers.size >= MAX_PEERS) {
+    } else if (this.room.peers.size >= MAX_PEERS || total >= MAX_SOCKETS) {
       server.close(CLOSE.tooMany, "This bento is full");
+    } else if (fromIp >= MAX_SOCKETS_PER_IP) {
+      server.close(CLOSE.tooMany, "Too many tabs open on this bento");
     } else {
-      server.serializeAttachment({ sid: randomId(10), peer: null } satisfies Attachment);
+      server.serializeAttachment({ sid: randomId(10), peer: null, at: Date.now() } satisfies Attachment);
     }
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -141,10 +181,14 @@ export class Box extends DurableObject<Env> {
     const a = ws.deserializeAttachment() as Attachment | null;
     if (!room || !a) return;
 
-    if (!this.allow(a.sid)) {
-      if ((this.strikes.get(a.sid) ?? 0) > MAX_STRIKES) ws.close(CLOSE.tooMany, "Too many messages");
+    // Checked before parsing, so an oversized message costs nothing to refuse.
+    if ((typeof data === "string" ? data.length : data.byteLength) > MAX_MESSAGE_BYTES) {
+      ws.close(1009, "Message too big");
       return;
     }
+    this.lastActivity = Date.now();
+    const limits = this.limitsFor(a.sid);
+    if (!limits.all.take(this.lastActivity)) return this.strike(ws, limits);
 
     let parsed;
     try {
@@ -156,9 +200,18 @@ export class Box extends DurableObject<Env> {
     }
     if (!parsed?.success) {
       this.send(ws, { t: "error", code: "bad_message", message: "Message didn't match the protocol." });
-      return;
+      return this.strike(ws, limits);
     }
     const msg = parsed.output;
+
+    if (msg.t === "op" && !limits.op.take(this.lastActivity)) {
+      this.slowDown(ws, msg.opId);
+      return this.strike(ws, limits);
+    }
+    if (SETTINGS.has(msg.t) && !limits.settings.take(this.lastActivity)) {
+      if ("opId" in msg) this.slowDown(ws, msg.opId);
+      return this.strike(ws, limits);
+    }
 
     if (!a.peer && msg.t !== "hello") {
       ws.close(CLOSE.badHello, "Say hello first");
@@ -207,6 +260,10 @@ export class Box extends DurableObject<Env> {
         return;
       case "access": {
         if (room.peers.get(a.sid)?.role === "owner") {
+          if (msg.password && !this.passwordSets.take(Date.now())) {
+            this.slowDown(ws, msg.opId);
+            return;
+          }
           if (msg.password) await this.setPassword(msg.password);
           else if (msg.mode === "password" && !this.hasPassword()) {
             this.send(ws, {
@@ -266,7 +323,9 @@ export class Box extends DurableObject<Env> {
   }
 
   override async alarm() {
-    this.flushText();
+    this.flushScheduled = false;
+    this.flushSafely();
+    if (this.room) this.closeSilent();
   }
 
   // ------------------------------------------------------- internals
@@ -274,10 +333,38 @@ export class Box extends DurableObject<Env> {
   private drop(ws: WebSocket) {
     const a = ws.deserializeAttachment() as Attachment | null;
     if (!a || !this.room) return;
-    this.buckets.delete(a.sid);
-    this.strikes.delete(a.sid);
+    this.limits.delete(a.sid);
     this.dispatch(this.room.leave(a.sid), ws);
-    if (this.room.peers.size === 0) this.flushText();
+    if (this.room.peers.size === 0) this.flushSafely(true);
+  }
+
+  /**
+   * Saving happens here rather than in the message handler, so this is where
+   * running out of daily quota shows up. Same answer as there: tell everyone.
+   * Unsaved changes stay pending for the next flush.
+   */
+  private flushSafely(all = false) {
+    try {
+      this.flush(all);
+    } catch (err) {
+      if (!isQuotaError(err)) throw err;
+      console.error("over capacity", err);
+      void this.closeAllOverCapacity();
+    }
+  }
+
+  /** Closes sockets that connected but never said hello. */
+  private closeSilent() {
+    const cutoff = Date.now() - HELLO_TIMEOUT_MS;
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment() as Attachment | null;
+      if (!a || a.peer || (a.at ?? 0) > cutoff) continue;
+      try {
+        ws.close(CLOSE.badHello, "Say hello first");
+      } catch {
+        // already closing
+      }
+    }
   }
 
   private async isOwnerToken(token: string): Promise<boolean> {
@@ -287,13 +374,28 @@ export class Box extends DurableObject<Env> {
     return !!row && timingSafeEqual(row.value, await sha256(token));
   }
 
-  private allow(sid: string): boolean {
-    const now = Date.now();
-    let bucket = this.buckets.get(sid);
-    if (!bucket) this.buckets.set(sid, (bucket = new TokenBucket(MESSAGE_RATE, MESSAGE_BURST, now)));
-    if (bucket.take(now)) return true;
-    this.strikes.set(sid, (this.strikes.get(sid) ?? 0) + 1);
-    return false;
+  private limitsFor(sid: string): Limits {
+    let l = this.limits.get(sid);
+    if (!l) {
+      const now = Date.now();
+      l = {
+        all: new TokenBucket(MESSAGE_RATE, MESSAGE_BURST, now),
+        op: new TokenBucket(OP_RATE, OP_BURST, now),
+        settings: new TokenBucket(SETTINGS_RATE, SETTINGS_BURST, now),
+        strikes: new TokenBucket(STRIKE_RATE, STRIKE_BURST, now),
+      };
+      this.limits.set(sid, l);
+    }
+    return l;
+  }
+
+  /** Counts a dropped message; a connection that keeps at it is closed. */
+  private strike(ws: WebSocket, limits: Limits) {
+    if (!limits.strikes.take(Date.now())) ws.close(CLOSE.tooMany, "Too many messages");
+  }
+
+  private slowDown(ws: WebSocket, opId: string) {
+    this.send(ws, { t: "rejected", opId, code: "rate_limited", message: "Slow down a little." });
   }
 
   private dispatch(out: Outgoing[], skip?: WebSocket) {
@@ -333,6 +435,14 @@ export class Box extends DurableObject<Env> {
   }
 
   // ------------------------------------------------------- storage
+
+  private exists(): boolean {
+    return (
+      this.ctx.storage.sql
+        .exec("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'meta'")
+        .toArray().length > 0
+    );
+  }
 
   private migrate() {
     this.ctx.storage.sql.exec(`
@@ -395,35 +505,51 @@ export class Box extends DurableObject<Env> {
 
   /** A bento-wide brake on guessing: 20 tries a minute across all comers. */
   private passwordTries = new TokenBucket(20 / 60, 20, Date.now());
+  private passwordSets = new TokenBucket(PASSWORD_SET_RATE, PASSWORD_SET_BURST, Date.now());
   private allowPasswordTry(): boolean {
     return this.passwordTries.take(Date.now());
   }
 
+  /**
+   * Every change is applied in memory and sent to everyone at once; saving
+   * it waits for the next flush. A compartment dragged or retyped many
+   * times in that window is written once, so writes follow how much of the
+   * board changed, not how many messages arrived.
+   */
   private save(persist: Persist) {
-    for (const id of persist.removed) {
-      this.pendingText.delete(id);
-      this.ctx.storage.sql.exec("DELETE FROM widgets WHERE id = ?", id);
-    }
-    for (const id of persist.now) {
-      this.pendingText.delete(id);
+    for (const set of [persist.now, persist.soon, persist.removed]) for (const id of set) this.dirty.add(id);
+    if (this.dirty.size > 0) this.scheduleFlush();
+  }
+
+  private scheduleFlush() {
+    if (this.flushScheduled) return;
+    this.flushScheduled = true;
+    void this.ctx.storage.setAlarm(Date.now() + FLUSH_MS);
+  }
+
+  /**
+   * Writes pending changes. While the box is busy it writes only what the
+   * write budget allows and comes back for the rest; once it's idle (or
+   * `all`), it writes everything, so nothing is lost when it hibernates.
+   */
+  private flush(all = false) {
+    const now = Date.now();
+    const idle = all || now - this.lastActivity >= IDLE_MS;
+    for (const id of this.dirty) {
+      if (!this.writes.take(now) && !idle) break;
       this.write(id);
+      this.dirty.delete(id);
     }
-    if (persist.soon.size > 0) {
-      for (const id of persist.soon) this.pendingText.add(id);
-      void this.ctx.storage.getAlarm().then((at) => {
-        if (at === null) void this.ctx.storage.setAlarm(Date.now() + TEXT_FLUSH_MS);
-      });
-    }
+    if (this.dirty.size > 0) this.scheduleFlush();
   }
 
-  private flushText() {
-    for (const id of this.pendingText) this.write(id);
-    this.pendingText.clear();
-  }
-
+  /** Saves a compartment as it is now, or deletes its row if it's gone. */
   private write(id: string) {
     const w = this.room?.widgets.get(id);
-    if (!w) return;
+    if (!w) {
+      this.ctx.storage.sql.exec("DELETE FROM widgets WHERE id = ?", id);
+      return;
+    }
     this.ctx.storage.sql.exec(
       "INSERT INTO widgets (id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
       w.id,

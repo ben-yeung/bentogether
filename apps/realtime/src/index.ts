@@ -1,6 +1,6 @@
 import * as v from "valibot";
 import { CLOSE, CreateBoxSchema, ID_PATTERN, randomId } from "@bentogether/shared";
-import { isQuotaError, originAllowed } from "./limits";
+import { ipKey, isQuotaError, originAllowed } from "./limits";
 import { devEnabled, devRoute, simulate } from "./dev";
 
 export { Box } from "./box";
@@ -64,7 +64,7 @@ async function route(request: Request, env: Env, allowed: boolean, cors: Headers
 
   if (!id) {
     if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405, cors);
-    const ip = request.headers.get("CF-Connecting-IP") ?? "local";
+    const ip = ipKey(request.headers.get("CF-Connecting-IP") ?? "local");
     const { success } = await env.CREATE_LIMITER.limit({ key: ip });
     if (!success) return json({ error: "rate_limited" }, 429, cors);
     const body = v.safeParse(CreateBoxSchema, await request.json().catch(() => ({})));
@@ -82,14 +82,20 @@ async function route(request: Request, env: Env, allowed: boolean, cors: Headers
   }
 
   if (!ID_PATTERN.test(id)) return json({ error: "not_found" }, 404, cors);
-  const stub = env.BOX.getByName(id);
+  const ip = ipKey(request.headers.get("CF-Connecting-IP") ?? "local");
 
   if (ws) {
     if (request.headers.get("Upgrade") !== "websocket") return json({ error: "upgrade_required" }, 426, cors);
-    return stub.fetch(request);
+    // Limits reconnect loops, which would otherwise reset every
+    // per-connection limit inside the box.
+    if (!(await env.CONNECT_LIMITER.limit({ key: ip })).success)
+      return json({ error: "rate_limited" }, 429, cors);
+    return env.BOX.getByName(id).fetch(request);
   }
 
   if (request.method !== "GET") return json({ error: "method_not_allowed" }, 405, cors);
+  if (!(await env.META_LIMITER.limit({ key: ip })).success) return json({ error: "rate_limited" }, 429, cors);
+  const stub = env.BOX.getByName(id);
   const meta = await stub.meta();
   return meta ? json(meta, 200, cors) : json({ error: "not_found" }, 404, cors);
 }
