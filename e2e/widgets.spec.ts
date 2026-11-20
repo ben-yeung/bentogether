@@ -107,9 +107,11 @@ test("free times: marked half hours show in each person's color, with who's free
   await cell(a).click();
   await expect(cell(a)).toHaveAttribute("data-mine", "");
   await cell(b).click();
-  // Two people free: two stripes, and the list on hover names both.
-  await expect(cell(a)).toHaveAttribute("aria-label", /Host, Guest/);
-  await expect(cell(b)).toHaveAttribute("style", /linear-gradient\(to right, .* 0% 50%, .* 50% 100%\)/);
+  // Two people free: a bar in each lane, the cell marked as everyone free,
+  // and the list on hover names both.
+  await expect(cell(a)).toHaveAttribute("aria-label", /Host, Guest \(everyone\)/);
+  await expect(cell(b).locator("[data-on]")).toHaveCount(2);
+  await expect(cell(b)).toHaveAttribute("data-all", "");
   await cell(b).hover();
   const pop = b.locator('[data-kind="freetimes"]').getByRole("tooltip");
   await expect(pop).toContainText("Host");
