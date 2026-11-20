@@ -74,7 +74,7 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
 - **Primitives:** async `createMemo`, `<Loading>`, `<Errored>`, `onCleanup`
 - **Shape:** `createMemo(() => openSession(props.id, identity))` returns a
   Promise that resolves on the server's first `welcome`. `<Loading>` shows
-  "Setting the table…" until then; a missing box rejects the Promise and
+  a rotating loading line until then; a missing box rejects the Promise and
   `<Errored>` shows "Nothing in this box." There are no `loading`/`error`
   branches anywhere in the components. The join modal reads the box title
   the same way (`createMemo(() => getBox(props.id))`).

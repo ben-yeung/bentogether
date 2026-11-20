@@ -8,11 +8,49 @@ export class BoxNotFound extends Error {
   }
 }
 
+/**
+ * The server said its free daily capacity on Cloudflare is used up. Nothing
+ * is lost; it comes back when the quota resets at 00:00 UTC.
+ */
+export class OverCapacity extends Error {
+  constructor() {
+    super("benTogether has used up its demo capacity for today.\nYour bentos are safe.");
+    this.name = "OverCapacity";
+  }
+}
+
+/**
+ * The server couldn't be reached at all. Usually the network, but once the
+ * Worker's own daily request limit is hit Cloudflare answers with a page the
+ * browser isn't allowed to read, so it looks exactly like this.
+ */
+export class Unreachable extends Error {
+  constructor() {
+    super(
+      "Can't reach benTogether right now. Check your connection.\nWe may have hit today's demo capacity.",
+    );
+    this.name = "Unreachable";
+  }
+}
+
 /** Meta plus live counts and the colors of whoever is there right now. */
 export type BoxInfo = BoxMeta & { people: number; compartments: number; hues?: number[] };
 
+/** `fetch` that turns a network failure or a quota response into a typed error. */
+async function call(path: string, init?: RequestInit): Promise<Response> {
+  let res: Response;
+  try {
+    res = await fetch(`${REALTIME_URL}${path}`, init);
+  } catch (err) {
+    if (init?.signal?.aborted) throw err;
+    throw new Unreachable();
+  }
+  if (res.status === 503) throw new OverCapacity();
+  return res;
+}
+
 export async function createBox(input: CreateBox): Promise<CreatedBox> {
-  const res = await fetch(`${REALTIME_URL}/api/boxes`, {
+  const res = await call("/api/boxes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -23,8 +61,8 @@ export async function createBox(input: CreateBox): Promise<CreatedBox> {
 }
 
 export async function getBox(id: string, signal?: AbortSignal): Promise<BoxInfo> {
-  const res = await fetch(`${REALTIME_URL}/api/boxes/${encodeURIComponent(id)}`, signal ? { signal } : {});
+  const res = await call(`/api/boxes/${encodeURIComponent(id)}`, signal ? { signal } : {});
   if (res.status === 404) throw new BoxNotFound();
-  if (!res.ok) throw new Error("Couldn't reach the bento. Check your connection.");
+  if (!res.ok) throw new Error("Couldn't reach the bento. Try again in a moment.");
   return (await res.json()) as BoxInfo;
 }

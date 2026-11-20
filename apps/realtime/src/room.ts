@@ -216,7 +216,7 @@ export class Room {
       return [
         {
           target: { to: "one", sid },
-          msg: { t: "rejected", opId, code: "invalid", message: "That person isn't at the table." },
+          msg: { t: "rejected", opId, code: "invalid", message: "That person isn't in this bento." },
         },
       ];
     }

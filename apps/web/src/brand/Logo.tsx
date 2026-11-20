@@ -1,3 +1,5 @@
+import type { JSX } from "@solidjs/web";
+import { navigate } from "../lib/router";
 import styles from "./Logo.module.css";
 
 /**
@@ -40,5 +42,23 @@ export function Lockup(props: { size?: "md" | "lg" }) {
       <Mark size={props.size === "lg" ? 52 : 28} />
       <Wordmark size={props.size ?? "md"} />
     </span>
+  );
+}
+
+/** Wraps a logo so clicking it goes back to the home page, without a reload. */
+export function HomeLink(props: { children: JSX.Element; class?: string }) {
+  return (
+    <a
+      href="/"
+      class={[styles.homeLink, props.class]}
+      aria-label="benTogether home"
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        navigate("/");
+      }}
+    >
+      {props.children}
+    </a>
   );
 }

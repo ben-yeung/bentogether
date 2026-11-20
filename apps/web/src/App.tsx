@@ -2,7 +2,7 @@ import { Match, Switch, createMemo } from "solid-js";
 import { matchRoute, navigate, path } from "./lib/router";
 import { Home } from "./pages/Home";
 import { BoxPage } from "./pages/BoxPage";
-import { Mark } from "./brand/Logo";
+import { HomeLink, Mark } from "./brand/Logo";
 import styles from "./pages/pages.module.css";
 
 export function App() {
@@ -17,8 +17,10 @@ export function App() {
       </Match>
       <Match when={route().name === "missing"}>
         <div class={styles.center}>
-          <Mark size={44} />
-          <h1 class={styles.heading}>Wrong table.</h1>
+          <HomeLink>
+            <Mark size={44} />
+          </HomeLink>
+          <h1 class={styles.heading}>Wrong bento.</h1>
           <p>There's nothing at this address.</p>
           <button type="button" class="btn btn-primary" onClick={() => navigate("/")}>
             Go home

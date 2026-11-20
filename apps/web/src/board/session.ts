@@ -26,10 +26,12 @@ import {
 } from "@bentogether/shared";
 import { Socket, type SocketStatus } from "../lib/socket";
 import { socketUrl } from "../lib/config";
-import { BoxNotFound } from "../lib/api";
+import { BoxNotFound, OverCapacity, Unreachable } from "../lib/api";
 import type { LocalIdentity } from "../lib/identity";
 
 const OP_TIMEOUT_MS = 8000;
+/** Give up on the first connection after this long and say why. */
+const CONNECT_TIMEOUT_MS = 15_000;
 const PRESENCE_MS = 50; // 20 Hz
 const TEXT_MS = 80;
 
@@ -54,6 +56,8 @@ type ServerState = {
   rev: number;
   sid: string;
   status: SocketStatus;
+  /** Why the server ended a live session, when it says (e.g. out of capacity). */
+  notice: string | null;
 };
 
 /**
@@ -75,7 +79,7 @@ export type BoxSession = ReturnType<typeof createSession>["session"];
 /**
  * Opens a box: connects, waits for the first `welcome`, and resolves with
  * the reactive session. Built to be returned from an async `createMemo`,
- * so `<Loading>` shows "Setting the table…" until the box arrives and
+ * so `<Loading>` shows the loading line until the box arrives and
  * `<Errored>` shows a missing box. The memo's cleanup closes the socket.
  */
 type Hello = LocalIdentity & { ownerToken?: string | undefined; password?: string | undefined };
@@ -93,6 +97,7 @@ function createSession(boxId: string, identity: () => Hello) {
     rev: 0,
     sid: "",
     status: "connecting",
+    notice: null,
   });
   const [overlay, setOverlay] = createOptimisticStore<Overlay>({
     created: {},
@@ -112,6 +117,14 @@ function createSession(boxId: string, identity: () => Hello) {
     resolveReady = res;
     rejectReady = rej;
   });
+  // A Worker over its daily request limit can't even send a close code (its
+  // error page has no CORS), so the socket just keeps failing. Don't leave
+  // the loading screen up forever: stop and explain.
+  const connectTimer = window.setTimeout(() => {
+    if (welcomed) return;
+    rejectReady(new Unreachable());
+    socket.close();
+  }, CONNECT_TIMEOUT_MS);
 
   // ---------------------------------------------------------- ops in flight
 
@@ -170,6 +183,7 @@ function createSession(boxId: string, identity: () => Hello) {
         setLeases(() => ({ ...msg.leases }));
         if (!welcomed) {
           welcomed = true;
+          clearTimeout(connectTimer);
           resolveReady();
         }
         return;
@@ -258,13 +272,21 @@ function createSession(boxId: string, identity: () => Hello) {
         setPeers(() => ({}));
         setLeases(() => ({}));
       }
+      if (status === "closed" && welcomed && close?.code === CLOSE.overCapacity) {
+        setServer((d) => {
+          d.notice = new OverCapacity().message;
+        });
+      }
       if (status === "closed" && !welcomed) {
+        clearTimeout(connectTimer);
         rejectReady(
           close?.code === CLOSE.password
             ? new PasswordRequired(close.reason === "wrong")
             : close?.code === CLOSE.tooMany
-              ? new Error(close.reason || "This table is full.")
-              : new BoxNotFound(),
+              ? new Error(close.reason || "This bento is full.")
+              : close?.code === CLOSE.overCapacity
+                ? new OverCapacity()
+                : new BoxNotFound(),
         );
       }
     },
@@ -498,6 +520,7 @@ function createSession(boxId: string, identity: () => Hello) {
   }
 
   function close() {
+    clearTimeout(connectTimer);
     clearTimeout(presenceTimer);
     for (const { timer } of textTimers.values()) clearTimeout(timer);
     failAllInflight("Closed.");

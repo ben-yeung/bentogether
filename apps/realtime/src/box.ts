@@ -13,7 +13,7 @@ import {
   type Widget,
 } from "@bentogether/shared";
 import { Room, MAX_PEERS, type Outgoing, type Persist } from "./room";
-import { MAX_STRIKES, MESSAGE_BURST, MESSAGE_RATE, TokenBucket } from "./limits";
+import { isQuotaError, MAX_STRIKES, MESSAGE_BURST, MESSAGE_RATE, TokenBucket } from "./limits";
 
 /** Text typed into notes is saved at most this often. */
 const TEXT_FLUSH_MS = 1500;
@@ -106,7 +106,7 @@ export class Box extends DurableObject<Env> {
     if (!this.room) {
       server.close(CLOSE.notFound, "This bento doesn't exist");
     } else if (this.room.peers.size >= MAX_PEERS) {
-      server.close(CLOSE.tooMany, "This table is full");
+      server.close(CLOSE.tooMany, "This bento is full");
     } else {
       server.serializeAttachment({ sid: randomId(10), peer: null } satisfies Attachment);
     }
@@ -114,6 +114,29 @@ export class Box extends DurableObject<Env> {
   }
 
   override async webSocketMessage(ws: WebSocket, data: string | ArrayBuffer) {
+    try {
+      await this.handle(ws, data);
+    } catch (err) {
+      if (!isQuotaError(err)) throw err;
+      // Out of daily quota: changes can't be saved, so say so to everyone
+      // rather than letting them keep typing into a box that won't keep it.
+      console.error("over capacity", err);
+      this.closeAllOverCapacity();
+    }
+  }
+
+  /** Ends every session in this box with `CLOSE.overCapacity`. Also used by `/__dev` locally. */
+  async closeAllOverCapacity() {
+    for (const s of this.ctx.getWebSockets()) {
+      try {
+        s.close(CLOSE.overCapacity, "over_capacity");
+      } catch {
+        // already closing
+      }
+    }
+  }
+
+  private async handle(ws: WebSocket, data: string | ArrayBuffer) {
     const room = this.room;
     const a = ws.deserializeAttachment() as Attachment | null;
     if (!room || !a) return;

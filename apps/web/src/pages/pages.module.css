@@ -18,6 +18,8 @@
 .center p {
   margin: 0;
   max-width: 32rem;
+  /* Messages may break lines with "\n". */
+  white-space: pre-line;
 }
 
 .heading {
@@ -26,6 +28,33 @@
   font-size: var(--step-3);
   letter-spacing: -0.025em;
   color: var(--lacquer);
+}
+
+/* The server ended a live session (e.g. out of daily capacity). */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  /* The toolbar's own padding sits above; match the side gutter below. */
+  margin: 0.5rem var(--space) var(--space);
+  padding: 0.7rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 8%, var(--rice-raised));
+  color: var(--lacquer);
+  text-align: center;
+}
+
+.notice p {
+  margin: 0;
+  max-width: 40rem;
+  font-weight: 600;
+}
+
+.notice p span {
+  display: inline-block;
 }
 
 .loadingMark {
