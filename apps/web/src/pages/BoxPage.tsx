@@ -3,8 +3,8 @@ import { Board } from "../board/Board";
 import { Toolbar } from "../board/Toolbar";
 import { AddWidget } from "../board/AddWidget";
 import { openSession, PasswordRequired, type BoxSession } from "../board/session";
-import { Lockup, Mark } from "../brand/Logo";
-import { BoxNotFound, getBox } from "../lib/api";
+import { HomeLink, Lockup, Mark } from "../brand/Logo";
+import { BoxNotFound, getBox, OverCapacity, Unreachable } from "../lib/api";
 import {
   loadDevice,
   nameFor,
@@ -20,12 +20,13 @@ import { ownerTokenFor } from "../lib/owner";
 import { navigate } from "../lib/router";
 import { createToaster } from "../ui/toasts";
 import { Splash } from "../ui/Splash";
+import { LoadingLine } from "../ui/LoadingLine";
 import styles from "./pages.module.css";
 
 /**
  * A box, end to end:
  * - first time here, a join modal asks your name for this box (its title
- *   and who's at the table come from an async memo under `<Loading>`);
+ *   and who's in the bento come from an async memo under `<Loading>`);
  * - then the session is an async memo that resolves on the server's first
  *   `welcome`, so `<Loading>` covers the wait and nothing renders half a box;
  * - a missing box rejects either memo, and `<Errored>` shows it, with no
@@ -65,7 +66,7 @@ export function BoxPage(props: { id: string }) {
               }}
             />
           ) : (
-            <BoxError error={err()} />
+            <BoxError error={err()} onRetry={reset} />
           )
         }
       >
@@ -141,6 +142,21 @@ function BoxView(props: {
   return (
     <main class={styles.box}>
       <Toolbar session={props.session} onRename={props.onRename} toast={props.toast} />
+      <Show when={props.session.server.notice}>
+        {(notice) => (
+          <div class={styles.notice} role="alert">
+            {/* Sentences sit on one line when they fit; otherwise each wraps whole. */}
+            <p>
+              {notice()
+                .split("\n")
+                .flatMap((line, i) => (i ? [" ", <span>{line}</span>] : [<span>{line}</span>]))}
+            </p>
+            <button type="button" class="btn" onClick={() => location.reload()}>
+              Try again
+            </button>
+          </div>
+        )}
+      </Show>
       <Board session={props.session} onError={(m) => props.toast(m, "error")} />
       <Show when={props.session.canEdit()}>
         <AddWidget session={props.session} toast={props.toast} />
@@ -169,13 +185,15 @@ function JoinGate(props: {
     <main class={styles.page}>
       <Splash label="Join this bento">
         <div class={styles.modalHead}>
-          <Lockup />
+          <HomeLink>
+            <Lockup />
+          </HomeLink>
         </div>
         <Loading fallback={<p class={styles.joinTitle}>Finding the bento…</p>}>
           <p class={styles.joinKicker}>You're invited to</p>
           <h1 class={styles.joinTitle}>{info().title}</h1>
           <p class={styles.joinMeta}>
-            {info().people === 0 ? "Nobody's here yet." : `${info().people} at the table`} ·{" "}
+            {info().people === 0 ? "Nobody's here yet." : `${info().people} in this bento`} ·{" "}
             {info().compartments} {info().compartments === 1 ? "note" : "notes"}
           </p>
         </Loading>
@@ -221,7 +239,7 @@ function JoinGate(props: {
             </Show>
           </Loading>
           <button type="submit" class={["btn btn-primary", styles.submit]}>
-            Join the table
+            Join the bento
           </button>
         </form>
       </Splash>
@@ -232,28 +250,51 @@ function JoinGate(props: {
 function SettingTable() {
   return (
     <div class={styles.center} role="status">
-      <div class={styles.loadingMark}>
+      <HomeLink class={styles.loadingMark}>
         <Mark size={44} />
-      </div>
-      <p>Setting the table…</p>
+      </HomeLink>
+      <p>
+        <LoadingLine />
+      </p>
     </div>
   );
 }
 
-function BoxError(props: { error: unknown }) {
+function BoxError(props: { error: unknown; onRetry: () => void }) {
   const missing = () => props.error instanceof BoxNotFound;
+  // Capacity and reachability pass on their own; worth another try later.
+  const transient = () => props.error instanceof OverCapacity || props.error instanceof Unreachable;
+  const heading = () =>
+    missing()
+      ? "Nothing in this bento."
+      : props.error instanceof OverCapacity
+        ? "We're full for today."
+        : props.error instanceof Unreachable
+          ? "Can't reach the bento."
+          : "Something went wrong.";
   return (
     <div class={styles.center}>
-      <Mark size={44} />
-      <h1 class={styles.heading}>{missing() ? "Nothing in this bento." : "Something went wrong."}</h1>
+      <HomeLink>
+        <Mark size={44} />
+      </HomeLink>
+      <h1 class={styles.heading}>{heading()}</h1>
       <p>
         {missing()
           ? "This bento doesn't exist, or it was cleared away."
           : String((props.error as Error)?.message ?? props.error)}
       </p>
-      <button type="button" class="btn btn-primary" onClick={() => navigate("/")}>
-        Start a new bento
-      </button>
+      <Show
+        when={transient()}
+        fallback={
+          <button type="button" class="btn btn-primary" onClick={() => navigate("/")}>
+            Start a new bento
+          </button>
+        }
+      >
+        <button type="button" class="btn btn-primary" onClick={() => props.onRetry()}>
+          Try again
+        </button>
+      </Show>
     </div>
   );
 }

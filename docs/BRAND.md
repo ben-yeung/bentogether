@@ -33,7 +33,7 @@ never cluttered.
 | box          | board, workspace   | The board is the bento box.             |
 | compartment  | widget, card, tile | In UI copy. Code can say `widget`.      |
 | note         | sticky, post-it    | The first kind of compartment.          |
-| at the table | online, active     | Presence: "3 at the table".             |
+| in the bento | online, active     | Presence: "3 in this bento".            |
 | pack / fill  | create / populate  | Use sparingly, once per screen at most. |
 
 Keep food metaphors to one per screen. The metaphor is the seasoning, not
@@ -57,7 +57,7 @@ Say what it is, then stop. Hints under controls are one short line each
 Examples:
 
 - Empty box: "An empty box. Add a note to fill the first compartment."
-- Connecting: "Setting the table…"
+- Connecting: rotates through `LOADING_LINES` in `ui/LoadingLine.tsx`, e.g. "Joining the bento…", "Opening the lid…"
 - Reconnecting: "Lost the connection. Reconnecting…"
 - Missing box: "This box doesn't exist, or it was cleared away."
 
@@ -130,7 +130,7 @@ shadow so it holds on the bright tones). Other chips (avatars, caret flags)
 use `personInk`: white on the deep tones, ink on the light ones.
 
 Your color is yours on this device (pick it from the "Color" pill in the name field).
-At a table, the server keeps your color if it's free; otherwise you get the
+In a bento, the server keeps your color if it's free; otherwise you get the
 free color farthest from everyone present. Two people share a color only
 once all 18 are taken.
 

@@ -8,7 +8,7 @@ export type SocketOptions = {
   hello: () => ClientMessage;
   onMessage: (msg: ServerMessage) => void;
   onStatus: (status: SocketStatus, close?: { code: number; reason: string }) => void;
-  /** Close codes that mean "stop trying" (missing box, full table). */
+  /** Close codes that mean "stop trying" (missing box, full bento, out of capacity). */
   fatalCodes?: readonly number[];
 };
 
@@ -81,7 +81,13 @@ export class Socket {
     ws.onclose = (e) => {
       clearInterval(this.pingTimer);
       if (this.ws !== ws || this.stopped) return;
-      const fatal = this.opts.fatalCodes ?? [CLOSE.notFound, CLOSE.tooMany, CLOSE.forbidden, CLOSE.password];
+      const fatal = this.opts.fatalCodes ?? [
+        CLOSE.notFound,
+        CLOSE.tooMany,
+        CLOSE.forbidden,
+        CLOSE.password,
+        CLOSE.overCapacity,
+      ];
       if (fatal.includes(e.code)) {
         this.stopped = true;
         this.opts.onStatus("closed", { code: e.code, reason: e.reason });

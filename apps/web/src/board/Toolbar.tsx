@@ -1,15 +1,14 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { NAME_MAX, TITLE_MAX } from "@bentogether/shared";
-import { Lockup } from "../brand/Logo";
+import { HomeLink, Lockup } from "../brand/Logo";
 import { personVars } from "../lib/identity";
-import { navigate } from "../lib/router";
 import type { BoxSession } from "./session";
 import { ShareDialog } from "./ShareDialog";
 import { SettingsDialog } from "./SettingsDialog";
 import styles from "./Toolbar.module.css";
 
 const STATUS_COPY = {
-  connecting: "Setting the table…",
+  connecting: "Joining the bento…",
   reconnecting: "Lost the connection. Reconnecting…",
   closed: "Disconnected",
   open: "",
@@ -31,16 +30,9 @@ export function Toolbar(props: {
 
   return (
     <header class={styles.bar}>
-      <a
-        href="/"
-        class={styles.home}
-        onClick={(e) => {
-          e.preventDefault();
-          navigate("/");
-        }}
-      >
+      <HomeLink class={styles.home}>
         <Lockup />
-      </a>
+      </HomeLink>
 
       <div class={styles.title}>
         <Show
@@ -104,7 +96,7 @@ export function Toolbar(props: {
             </span>
           )}
         </Show>
-        <Show when={STATUS_COPY[s().server.status]}>
+        <Show when={s().server.notice ? "Paused" : STATUS_COPY[s().server.status]}>
           {(copy) => (
             <span class={styles.status} data-status={s().server.status}>
               {copy()}
@@ -113,7 +105,7 @@ export function Toolbar(props: {
         </Show>
       </div>
 
-      <div class={styles.people} aria-label={`${people().length} at the table`}>
+      <div class={styles.people} aria-label={`${people().length} in this bento`}>
         <ul class={styles.faces}>
           <For each={people()} keyed={(p) => p.sid}>
             {(p) => (
@@ -127,7 +119,7 @@ export function Toolbar(props: {
             )}
           </For>
         </ul>
-        <span class={styles.count}>{people().length} at the table</span>
+        <span class={styles.count}>{people().length} in this bento</span>
       </div>
 
       <Show

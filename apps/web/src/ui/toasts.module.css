@@ -17,6 +17,8 @@
   font-size: var(--step--1);
   box-shadow: var(--lift-shadow);
   animation: rise 220ms var(--ease-snap);
+  white-space: pre-line;
+  text-align: center;
 }
 
 .toast[data-tone="error"] {

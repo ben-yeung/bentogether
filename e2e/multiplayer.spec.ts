@@ -32,15 +32,15 @@ async function join(page: Page, url: string, name: string) {
   await page.goto(url);
   await expect(page.getByRole("dialog", { name: "Join this bento" })).toBeVisible();
   await page.getByLabel("Your name").fill(name);
-  await page.getByRole("button", { name: "Join the table" }).click();
+  await page.getByRole("button", { name: "Join the bento" }).click();
 }
 
 test("a note added and typed by one person appears live for another", async ({ browser }) => {
   const [a, b] = await twoPeople(browser);
   await newBox(a, "E2E lunch");
   await join(b, a.url(), "Guest");
-  await expect(b.getByText("2 at the table")).toBeVisible();
-  await expect(a.getByText("2 at the table")).toBeVisible();
+  await expect(b.getByText("2 in this bento")).toBeVisible();
+  await expect(a.getByText("2 in this bento")).toBeVisible();
 
   await addNote(a);
   await expect(b.locator("[data-note]")).toHaveCount(1);
@@ -68,7 +68,7 @@ test("cursors show up for everyone else with the person's name", async ({ browse
   const [a, b] = await twoPeople(browser);
   await newBox(a, "Cursor check");
   await join(b, a.url(), "Guest");
-  await expect(b.getByText("2 at the table")).toBeVisible();
+  await expect(b.getByText("2 in this bento")).toBeVisible();
 
   const box = a.locator("[data-custom-cursor]");
   const bb = (await box.boundingBox())!;
@@ -84,7 +84,7 @@ test("starter notes and box options are applied", async ({ browser }) => {
   await newBox(a, "Options", { starter: true, cursors: false });
   await expect(a.locator("[data-note]")).toHaveCount(3);
   await join(b, a.url(), "Guest");
-  await expect(b.getByText("2 at the table")).toBeVisible();
+  await expect(b.getByText("2 in this bento")).toBeVisible();
 
   const bb = (await a.locator("main").last().boundingBox())!;
   await a.mouse.move(bb.x + 300, bb.y + 400, { steps: 4 });
@@ -142,7 +142,7 @@ test("only the creator can rename the bento; everyone sees the credit", async ({
   const [a, b] = await twoPeople(browser);
   await newBox(a, "Before");
   await join(b, a.url(), "Guest");
-  await expect(b.getByText("2 at the table")).toBeVisible();
+  await expect(b.getByText("2 in this bento")).toBeVisible();
 
   // Both see "by Host" next to the title.
   for (const page of [a, b])
@@ -197,12 +197,12 @@ test("a password protected bento asks newcomers for the password", async ({ brow
   await b.goto(a.url());
   await b.getByLabel("Your name").fill("Guest");
   await b.getByLabel("Password").fill("wrong-one");
-  await b.getByRole("button", { name: "Join the table" }).click();
+  await b.getByRole("button", { name: "Join the bento" }).click();
   await expect(b.getByText("That password didn't work.")).toBeVisible();
 
   await b.getByLabel("Password").fill("onigiri");
-  await b.getByRole("button", { name: "Join the table" }).click();
-  await expect(b.getByText("2 at the table")).toBeVisible();
+  await b.getByRole("button", { name: "Join the bento" }).click();
+  await expect(b.getByText("2 in this bento")).toBeVisible();
 
   // The creator never needs it.
   await a.reload();
@@ -223,7 +223,7 @@ test("bento settings: the creator changes them live, guests can't", async ({ bro
   const [a, b] = await twoPeople(browser);
   await newBox(a, "Settings");
   await join(b, a.url(), "Guest");
-  await expect(b.getByText("2 at the table")).toBeVisible();
+  await expect(b.getByText("2 in this bento")).toBeVisible();
 
   await b.getByRole("button", { name: "Bento settings" }).click();
   await expect(b.getByRole("switch", { name: "Live cursors" })).toBeDisabled();

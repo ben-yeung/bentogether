@@ -9,7 +9,7 @@ const WIDGETS = [
   {
     kind: "note",
     name: "Sticky note",
-    blurb: "Text anyone at the table can write in, live.",
+    blurb: "Text anyone in the bento can write in, live.",
   },
 ] as const;
 
