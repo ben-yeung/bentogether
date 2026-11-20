@@ -100,7 +100,8 @@ test("a joiner's name is per box and remembered on reload", async ({ browser }) 
   await expect(a.getByTitle("Shiso")).toBeVisible();
   await b.reload();
   await expect(b.getByRole("dialog", { name: "Join this bento" })).toHaveCount(0);
-  await expect(b.getByRole("button", { name: "Change your name" })).toContainText("Shiso");
+  await b.getByRole("button", { name: "Bento settings" }).click();
+  await expect(b.getByLabel("Your name")).toHaveValue("Shiso");
 });
 
 test("people on different screen sizes see the same box, scaled", async ({ browser }) => {
