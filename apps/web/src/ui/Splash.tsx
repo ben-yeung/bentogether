@@ -40,7 +40,7 @@ const GHOSTS: Array<{
   { name: "Mochi", hue: 10, variant: "ibeam", action: "typing", left: 18, top: 24, drift: 0 },
   { name: "Yuzu", hue: 210, variant: "grab", action: "moving", left: 72, top: 64, drift: 1 },
   { name: "Nori", hue: 130, variant: "hand", action: null, left: 86, top: 18, drift: 2 },
-  { name: "Ikura", hue: 330, variant: "grab", action: "resizing", left: 9, top: 72, drift: 3 },
+  { name: "Ikura", hue: 330, variant: "resize", action: "resizing", left: 9, top: 72, drift: 3 },
   { name: "Shiso", hue: 290, variant: "dart", action: null, left: 44, top: 88, drift: 1 },
   { name: "Tamago", hue: 70, variant: "ibeam", action: "typing", left: 60, top: 9, drift: 2 },
   { name: "Kombu", hue: 250, variant: "dart", action: "adding a note", left: 92, top: 82, drift: 0 },

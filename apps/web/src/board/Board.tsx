@@ -113,6 +113,10 @@ export function Board(props: { session: BoxSession; onError: (message: string) =
   // Follows the in-app light/dark setting, not just the OS.
   let selfTag: HTMLDivElement | undefined;
 
+  const selfVariant = createMemo<PointerVariant>(() => {
+    const d = local();
+    return d ? (d.mode === "resize" ? "resize" : "grab") : hover();
+  });
   const customCursor = createMemo(() => finePointer() && s().options().cursors);
   const cursorStyle = createMemo(() => {
     const self = me();
@@ -127,7 +131,6 @@ export function Board(props: { session: BoxSession; onError: (message: string) =
     return cursorCss(selfVariant(), oklchToHex(l, c, tone.h), size);
   });
 
-  const selfVariant = createMemo<PointerVariant>(() => (local() ? "grab" : hover()));
   const selfAction = createMemo(() => {
     const d = local();
     if (d) return d.mode === "move" ? "moving" : "resizing";
@@ -148,9 +151,11 @@ export function Board(props: { session: BoxSession; onError: (message: string) =
     setHover(
       t.closest("textarea")
         ? "ibeam"
-        : t.closest("button, [data-resize], [data-note]:not([data-readonly])")
-          ? "hand"
-          : "dart",
+        : t.closest("[data-resize]")
+          ? "resize"
+          : t.closest("button, [data-note]:not([data-readonly])")
+            ? "hand"
+            : "dart",
     );
     s().setPresence({ cursor: { x: round2(p.x / pitch()), y: round2(p.y / pitch()) } });
   }

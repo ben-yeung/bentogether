@@ -50,6 +50,12 @@ const GLYPHS: Record<PointerVariant, Glyph> = {
     filled: true,
     hot: [11, 10],
   },
+  resize: {
+    viewBox: [20, 20],
+    d: "M3 3 17 17M3 6.5V3h3.5M17 13.5V17h-3.5",
+    filled: false,
+    hot: [10, 10],
+  },
   ibeam: {
     viewBox: [20, 20],
     d: "M6.5 2.5c2 0 3.5.8 3.5 2.2v10.6c0 1.4-1.5 2.2-3.5 2.2M13.5 2.5c-2 0-3.5.8-3.5 2.2v10.6c0 1.4 1.5 2.2 3.5 2.2",
@@ -74,11 +80,18 @@ export function cursorCss(variant: PointerVariant, color: string, sizePx: number
   // An ink outline under the fill keeps the color legible on any note.
   const paint = g.filled
     ? `<path d="${g.d}" fill="${INK}" stroke="${INK}" stroke-width="3" stroke-linejoin="round" opacity=".55"/><path d="${g.d}" fill="${color}" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>`
-    : `<path d="${g.d}" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round" opacity=".55"/><path d="${g.d}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/>`;
+    : `<path d="${g.d}" fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><path d="${g.d}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="-2 -2 ${vw + 4 / scale} ${vh + 4 / scale}">${paint}</svg>`;
   const hx = Math.round((g.hot[0] + 2) * scale);
   const hy = Math.round((g.hot[1] + 2) * scale);
-  const fallback = variant === "ibeam" ? "text" : variant === "dart" ? "default" : "pointer";
+  const fallback =
+    variant === "ibeam"
+      ? "text"
+      : variant === "dart"
+        ? "default"
+        : variant === "resize"
+          ? "nwse-resize"
+          : "pointer";
   const css = `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${hx} ${hy}, ${fallback}`;
   cache.set(key, css);
   return css;
