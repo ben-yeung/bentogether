@@ -1,4 +1,6 @@
-import { For, Show } from "solid-js";
+import { createMemo, For, Show } from "solid-js";
+import { NAME_MAX } from "@bentogether/shared";
+import { personVars } from "../lib/identity";
 import { setThemePref, themePref, type ThemePref } from "../lib/theme";
 import { Dialog } from "../ui/Dialog";
 import { Switch } from "../ui/Switch";
@@ -12,23 +14,57 @@ const THEMES: Array<{ value: ThemePref; label: string }> = [
 ];
 
 /**
- * Settings: this bento's (for everyone; the creator changes them, enforced by
- * the server) and your own appearance (light/dark, kept on this device).
+ * Settings: your name here, this bento's (for everyone; the creator changes
+ * them, enforced by the server) and your own appearance (light/dark, kept on
+ * this device).
  */
 export function SettingsDialog(props: {
   open: boolean;
   onClose: () => void;
   session: BoxSession;
+  onRename: (name: string) => void;
   toast: (message: string, tone?: "info" | "error") => void;
 }) {
   const s = () => props.session;
   const fail = (err: Error) => props.toast(err.message, "error");
+  const me = createMemo(() => s().peers[s().server.sid]);
+
+  // Saved when you leave the field or press Enter; an empty name reverts.
+  function commitName(input: HTMLInputElement) {
+    const next = input.value.trim().slice(0, NAME_MAX);
+    const current = me()?.name ?? "";
+    if (!next) input.value = current;
+    else if (next !== current) props.onRename(next);
+  }
+
   return (
     <Dialog open={props.open} onClose={props.onClose} label="Bento settings" size="sm">
       <div class={styles.settings}>
         <header class={styles.head}>
           <h2 class={styles.title}>Settings</h2>
         </header>
+        <section class={styles.section}>
+          <label class={styles.sectionLabel} for="settings-name">
+            Your name <span class={styles.sectionNote}>(just for this bento)</span>
+          </label>
+          <span class={styles.nameRow}>
+            <span class={styles.nameDot} style={personVars(me()?.hue ?? 0)} aria-hidden="true" />
+            <input
+              id="settings-name"
+              class={["field", styles.nameInput]}
+              value={me()?.name ?? ""}
+              maxlength={NAME_MAX}
+              autocomplete="nickname"
+              onChange={(e) => commitName(e.currentTarget)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitName(e.currentTarget);
+                }
+              }}
+            />
+          </span>
+        </section>
         <section class={styles.section} aria-label="This bento">
           <h3 class={styles.sectionLabel}>
             This bento <span class={styles.sectionNote}>(for everyone)</span>
