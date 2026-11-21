@@ -1,7 +1,9 @@
 <h1>
   <img src="apps/web/public/favicon.svg" alt="" width="40" height="40" align="absmiddle">
-  benTogether <sub><i>Pack ideas into a bento together.</i></sub>
+  benTogether
 </h1>
+
+_Pack ideas into a bento together._
 
 A live, multiplayer bento board. Share a link and everyone can contribute to notes, tasks, polls, events, and more.
 

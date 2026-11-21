@@ -198,6 +198,10 @@
   pointer-events: none;
 }
 
+.flagSep {
+  opacity: 0.6;
+}
+
 @keyframes blink {
   50% {
     border-left-color: transparent;

@@ -431,7 +431,10 @@ function CaretText(props: { text: string; carets: Caret[] }) {
           <Match when={caretOf(piece())}>
             {(c) => (
               <span class={styles.caret} style={personVars(c().hue)} aria-hidden="true">
-                <span class={styles.flag}>{c().name}</span>
+                <span class={styles.flag}>
+                  {c().name}
+                  <span class={styles.flagSep}> · </span>typing
+                </span>
               </span>
             )}
           </Match>
