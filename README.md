@@ -10,6 +10,7 @@ More detail: [Solid 2.0 notes](docs/SOLID-2.md) · [brand guide](docs/BRAND.md).
 
 - Live cursors, typing carets and drag previews for everyone in a bento
 - Sticky notes: add, drag, resize, recolor, set text size; "- " starts a bullet list, and headings, **bold**, _italic_, `code` and [ ] boxes show formatted
+- One typist per note at a time; if they go quiet for 30 s, the next person can take the note over, and any words that didn't save stay on their note to copy
 - To-do lists: a title line and items anyone can add, tick, edit, reorder and clear
 - Budgets: a shared total to spend from: type an amount and press − or +, tap the total to set it, and a history of who changed it
 - Timers: one countdown for everyone, counted on each screen from the server's clock
@@ -31,7 +32,8 @@ More detail: [Solid 2.0 notes](docs/SOLID-2.md) · [brand guide](docs/BRAND.md).
  │ session.ts                   │ ───────▶ │ Worker (index.ts)                    │
  │  server store  ◀── messages  │          │  CORS/origin check, create box,      │
  │  optimistic overlay (actions)│          │  route socket → Durable Object       │
- │  presence (20 Hz, coalesced) │          │                                      │
+ │  pending edits (bursty ops)  │          │                                      │
+ │  presence (≤20 Hz, focused)  │          │                                      │
  │ Board / Note / Cursors       │ ◀─────── │ Box Durable Object (box.ts), 1 per box│
  └──────────────────────────────┘          │  Room (room.ts): pure rules          │
                                            │  SQLite storage, hibernating sockets │
@@ -50,6 +52,9 @@ More detail: [Solid 2.0 notes](docs/SOLID-2.md) · [brand guide](docs/BRAND.md).
 
 - **Server is authoritative.** Clients send ops; the Durable Object validates, applies and
   broadcasts. Rules live in `Room`, a pure class unit-tested in Node.
+- **Confirmed means saved.** A change is written to SQLite in the same event that confirms it,
+  so the Durable Object's output gate holds the confirmation until it's durable. Only typed note
+  text is coalesced and flushed every 1.5 s.
 - **Shared layout.** The same `settle()` runs on server and client, so drag previews match.
 - **Grid units everywhere.** Every viewer sees the same layout and line wraps at any screen size.
 - **Permissions are server-side.** Owner token (hashed), roles per device, PBKDF2 passwords.

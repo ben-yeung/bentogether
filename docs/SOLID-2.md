@@ -29,16 +29,18 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
 
 ### 1. Server truth and an optimistic overlay are separate stores
 
-- **Where:** `apps/web/src/board/state.ts`
+- **Where:** `apps/web/src/board/session.ts`
 - **Primitives:** `createStore`, `createOptimisticStore`, `action`,
   `createMemo`
 - **Shape:**
   - `server`: a plain `createStore`. Only socket messages write to it. It
     is the confirmed state of the box.
-  - `overlay`: a non-derived `createOptimisticStore`. Local writes (add,
-    move, recolor, delete) go here inside an `action`, so they show at once.
-  - A widget's view is `overlay.items[id] ?? server.items[id]` (minus
-    `overlay.deleted`).
+  - `overlay`: a non-derived `createOptimisticStore`. One-off local writes
+    (move, recolor, text size, currency, title, delete) go here inside an
+    `action`, so they show at once. Adding a widget and edits made in bursts
+    use a plain `pending` store instead (entries 13 and 14).
+  - A widget's view is `overlay.rects[id] ?? server.widgets[id]` (and the
+    same for colors, sizes...), minus `overlay.deleted`.
   - The action yields until the server acknowledges the op. When the
     transition settles, the overlay reverts on its own and the confirmed
     value in `server` shows through. If the server rejects the op, the
@@ -87,8 +89,9 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
 
 ### 4. Optimistic process flags with `createOptimistic`
 
-- **Where:** `board/Toolbar.tsx` ("Adding…"), `pages/Home.tsx` ("Packing
-  the box…")
+- **Where:** `pages/Home.tsx` ("Packing the box…"). The widget picker's
+  "Adding…" (`board/AddWidget.tsx`) used this too, until adding left actions
+  (entry 14); it's a plain signal now.
 - **Primitives:** `createOptimistic(false)` written inside an `action`
 - **Why:** the flag is true for exactly as long as the action is in flight
   and reverts by itself, including on failure. This is the documented 2.0
@@ -106,7 +109,7 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
 ### 6. Split effects keep side effects out of tracking
 
 - **Where:** `cursors/CursorTag.tsx` (typewriter), `cursors/Cursors.tsx`
-  (remote cursor easing), `pages/BoxPage.tsx` (document title), `board/Note.tsx`
+  (remote cursor easing), `pages/BoxPage.tsx` (document title), `board/widgets/note/Note.tsx`
   (focus, lease loss)
 - **Primitive:** `createEffect(compute, apply)`
 - **Shape:** compute reads reactive values and returns plain data; apply
@@ -185,7 +188,7 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
 
 ### 13. Rapid list edits stay out of actions
 
-- **Where:** `board/session.ts` (`changeItem`, `setListTitle`), `board/Todo.tsx`
+- **Where:** `board/session.ts` (`changeItem`, `setListTitle`), `board/widgets/todo/Todo.tsx`
 - **Primitives:** plain `createStore` for pending edits; no `action`
 - **Shape:** each To-do change is written to a `pending` store, sent, and
   removed when the server answers (or rejects). A list's items are the
@@ -246,6 +249,25 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
   server's clock (the welcome carries `now`). An effect writing the current
   time into a signal tripped `EFFECT_RELAY_TEAR`; ticking a counter and
   reading the clock in the derivation did not.
+
+### 16. Losing a note: compute returns the snapshot, apply acts on it
+
+- **Where:** `board/widgets/note/Note.tsx` (lease loss), `board/session.ts`
+  (`textOps`)
+- **Primitives:** split `createEffect(compute, apply)`, plain signals
+- **Shape:** the compute returns `null` while you hold the note, and once
+  you don't, it returns a plain snapshot: `{ draft, saved, by }` (your
+  text, the bento's saved text, who has it now). Apply ends the edit and
+  keeps `draft` as unsaved if it differs from `saved`. The draft and the
+  store are read in compute, never in apply, for the same reason as entry 6
+  (`STRICT_READ_UNTRACKED`).
+- **Why the ordering is safe:** the socket is ordered. Any text the server
+  accepted arrives as `applied` before the `lease` message that hands the
+  note to someone else, so at that moment `saved` already includes
+  everything that was kept.
+- **Rule we follow:** "holding it" is `holder === me`, not "someone else
+  holds it". A cleared lease (a reconnect, a refused keystroke) ends the
+  edit too.
 
 ---
 

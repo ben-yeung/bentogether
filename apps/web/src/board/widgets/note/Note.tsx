@@ -45,13 +45,59 @@ export function Note(props: WidgetProps) {
     return p && c && c.id === props.id ? { ...c, hue: p.hue, name: p.name } : null;
   });
 
-  // Losing the lease (reconnect, someone deleted the note) ends your edit.
+  /**
+   * Text you typed that the bento never got, kept after you lost the note so
+   * nothing you wrote vanishes. Shown until you dismiss it, or until the
+   * note's saved text catches up with it (a reconnect that did save it).
+   */
+  const [unsaved, setUnsaved] = createSignal<string | null>(null);
+  const showUnsaved = () => {
+    const u = unsaved();
+    return u !== null && u !== s().text(props.id) ? u : null;
+  };
+
+  // Losing the note ends your edit: someone took it over after you went
+  // quiet, you reconnected, the bento refused your text, or it was deleted.
+  // Everything the bento confirmed is already saved; anything past that is
+  // kept as a draft to copy.
   createEffect(
-    () => editing() && holder() !== null && !s().isMine(holder()!),
+    () => {
+      const h = holder();
+      if (!editing() || (h !== null && s().isMine(h))) return null;
+      return {
+        draft: draft(),
+        saved: s().text(props.id),
+        by: h === null ? null : (s().peers[h]?.name ?? "Someone"),
+      };
+    },
     (lost) => {
-      if (lost) setEditing(false);
+      if (!lost) return;
+      s().cancelText(props.id);
+      setEditing(false);
+      s().setPresence({ action: null, caret: null });
+      const kept = lost.draft !== lost.saved;
+      if (kept) setUnsaved(lost.draft);
+      if (lost.by) {
+        props.onNotice?.(
+          kept
+            ? `${lost.by} took over this note. Your last words didn't save; they're kept on the note.`
+            : `${lost.by} took over this note while you were away. Everything you wrote is saved.`,
+        );
+      }
     },
   );
+
+  async function copyUnsaved() {
+    const text = unsaved();
+    if (text === null) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setUnsaved(null);
+      props.onNotice?.("Copied your text.");
+    } catch {
+      props.onError("Couldn't copy. Select the text and copy it instead.");
+    }
+  }
 
   // Focus once the textarea exists.
   createEffect(
@@ -67,11 +113,8 @@ export function Note(props: WidgetProps) {
 
   async function startEditing() {
     if (editing() || props.readOnly) return;
-    const busy = typist();
-    if (busy) {
-      props.onError(`${busy.name} is typing here.`);
-      return;
-    }
+    // Asked even when someone holds it: the server hands over a note whose
+    // typist has gone quiet, and says no otherwise.
     const granted = await s().takeLease(props.id);
     if (!granted) {
       props.onError(typist() ? `${typist()!.name} is typing here.` : "Couldn't open this note.");
@@ -189,6 +232,22 @@ export function Note(props: WidgetProps) {
             onPointerUp={sendCaret}
             onBlur={stopEditing}
           />
+        </Show>
+        <Show when={!editing() && showUnsaved()}>
+          {(text) => (
+            <div class={styles.unsaved} role="status" data-nodrag>
+              <p class={styles.unsavedTitle}>Not saved: your last words</p>
+              <p class={styles.unsavedText}>{text()}</p>
+              <div class={styles.unsavedActions}>
+                <button type="button" onClick={() => void copyUnsaved()}>
+                  Copy
+                </button>
+                <button type="button" onClick={() => setUnsaved(null)}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
         </Show>
       </div>
 
