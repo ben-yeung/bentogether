@@ -3,7 +3,7 @@
   benTogether
 </h1>
 
-_Pack ideas into a bento together._
+### _Pack ideas into a bento together._
 
 A live, multiplayer bento board. Share a link and everyone can contribute to notes, tasks, polls, events, and more.
 
