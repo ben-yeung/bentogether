@@ -39,7 +39,11 @@ type LocalDrag = { id: string; mode: "move" | "resize"; rect: Rect; carry: { x: 
  * packed by the same `settle` the server runs. So you see the box make room
  * as you, or anyone, carries a widget, before anything is committed.
  */
-export function Board(props: { session: BoxSession; onError: (message: string) => void }) {
+export function Board(props: {
+  session: BoxSession;
+  onError: (message: string) => void;
+  onNotice?: (message: string) => void;
+}) {
   const s = () => props.session;
   let boardEl!: HTMLDivElement;
 
@@ -296,6 +300,7 @@ export function Board(props: { session: BoxSession; onError: (message: string) =
               },
               onPointerDown: (e, mode) => beginDrag(e, id, mode),
               onError: props.onError,
+              onNotice: props.onNotice,
               get readOnly() {
                 return !s().canEdit();
               },

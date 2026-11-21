@@ -7,6 +7,7 @@ import {
   type BoxMeta,
   type AssignableRole,
   type BoxOptions,
+  type ClientMessage,
   type CreatedBox,
   type Peer,
   type ServerMessage,
@@ -26,6 +27,10 @@ import {
   OP_RATE,
   PASSWORD_SET_BURST,
   PASSWORD_SET_RATE,
+  PASSWORD_TRY_BURST,
+  PASSWORD_TRY_IP_BURST,
+  PASSWORD_TRY_IP_RATE,
+  PASSWORD_TRY_RATE,
   SETTINGS_BURST,
   SETTINGS_RATE,
   STRIKE_BURST,
@@ -37,8 +42,12 @@ import {
   isQuotaError,
 } from "./limits";
 
-/** Survives hibernation on each socket. `at` is when it connected. */
-type Attachment = { sid: string; peer: Peer | null; at?: number };
+/**
+ * Survives hibernation on each socket. `at` is when it connected; `leases`
+ * are the notes this peer is typing in (note id → when they last typed or
+ * moved their caret there), so a wake forgets neither.
+ */
+type Attachment = { sid: string; peer: Peer | null; at?: number; leases?: Record<string, number> };
 
 /** A connection's rate limits. In memory only: hibernation resets them. */
 type Limits = { all: TokenBucket; op: TokenBucket; settings: TokenBucket; strikes: TokenBucket };
@@ -57,11 +66,13 @@ const SETTINGS = new Set(["rename", "retitle", "access", "options", "role", "cle
 export class Box extends DurableObject<Env> {
   private room: Room | null = null;
   private limits = new Map<string, Limits>();
-  /** Widgets changed or removed since the last flush. */
+  /** Notes whose typed text hasn't been saved yet (see `save`). */
   private dirty = new Set<string>();
   private flushScheduled = false;
   private lastActivity = 0;
   private writes = new TokenBucket(WRITE_RATE, WRITE_BURST, Date.now());
+  /** Sockets whose hello is being checked. In memory only: an event in flight keeps the object awake. */
+  private joining = new WeakSet<WebSocket>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -74,7 +85,7 @@ export class Box extends DurableObject<Env> {
       if (this.room) {
         for (const ws of ctx.getWebSockets()) {
           const a = ws.deserializeAttachment() as Attachment | null;
-          if (a?.peer) this.room.restore(a.peer);
+          if (a?.peer) this.room.restore(a.peer, a.leases);
         }
       }
     });
@@ -84,10 +95,10 @@ export class Box extends DurableObject<Env> {
 
   // ------------------------------------------------------------ RPC
 
-  /** Creates the box. Called once by the Worker right after picking an id. */
   /**
-   * Creates the bento. Returns its meta plus an owner token, the only time
-   * the token exists in plain form: only its SHA-256 hash is stored.
+   * Creates the bento. Called once by the Worker right after picking an id.
+   * Returns its meta plus an owner token, the only time the token exists in
+   * plain form: only its SHA-256 hash is stored.
    */
   async init(input: {
     id: string;
@@ -219,43 +230,26 @@ export class Box extends DurableObject<Env> {
     }
 
     switch (msg.t) {
-      case "hello": {
-        if (a.peer) return;
-        const owner = msg.ownerToken ? await this.isOwnerToken(msg.ownerToken) : false;
-        if (!owner && room.access.mode === "password") {
-          if (!this.allowPasswordTry()) {
-            ws.close(CLOSE.tooMany, "Too many password attempts. Try again in a minute.");
-            return;
-          }
-          if (!msg.password || !(await this.checkPassword(msg.password))) {
-            ws.close(CLOSE.password, msg.password ? "wrong" : "required");
-            return;
-          }
-        }
-        if (room.nameTaken(msg.name, msg.clientId)) {
-          ws.close(CLOSE.nameTaken, "taken");
-          return;
-        }
-        const out = room.join(a.sid, msg, owner);
-        ws.serializeAttachment({ sid: a.sid, peer: room.peers.get(a.sid)! } satisfies Attachment);
-        this.dispatch(out);
-        return;
-      }
+      case "hello":
+        return this.hello(ws, a, msg, room);
       case "op": {
         const { out, persist } = room.apply(a.sid, msg.opId, msg.op);
         this.save(persist);
+        this.keepLeaseTime(ws, a.sid);
         this.dispatch(out);
         return;
       }
       case "presence":
         this.dispatch(room.presence(a.sid, msg.presence));
+        // Only a caret counts as activity in a note; plain cursor moves don't.
+        if (msg.presence.caret) this.keepLeaseTime(ws, a.sid);
         return;
       case "lease":
         this.dispatch(room.lease(a.sid, msg.id, msg.take));
         return;
       case "rename": {
         const out = room.rename(a.sid, msg.name);
-        ws.serializeAttachment({ sid: a.sid, peer: room.peers.get(a.sid) ?? null } satisfies Attachment);
+        this.attach(ws, a.sid);
         this.dispatch(out);
         return;
       }
@@ -305,17 +299,60 @@ export class Box extends DurableObject<Env> {
         const out = room.setRole(a.sid, msg.opId, msg.sid, msg.role);
         this.saveRoles();
         // Roles live on the socket too, so they survive hibernation.
-        for (const s of this.ctx.getWebSockets()) {
-          const att = s.deserializeAttachment() as Attachment | null;
-          const p = att && room.peers.get(att.sid);
-          if (att && p) s.serializeAttachment({ sid: att.sid, peer: p } satisfies Attachment);
-        }
+        this.attachAll();
         this.dispatch(out);
         return;
       }
       case "ping":
         this.send(ws, { t: "pong" });
         return;
+    }
+  }
+
+  /**
+   * Admits a socket as a peer. Written for hostile clients as much as real
+   * ones: checking an owner token or a password awaits hashing, and other
+   * events run in the meantime (only storage calls hold them), so anything
+   * that could change during those awaits is checked again afterwards.
+   */
+  private async hello(ws: WebSocket, a: Attachment, msg: Extract<ClientMessage, { t: "hello" }>, room: Room) {
+    // A socket says hello once. A second one, during the first's checks or
+    // after it, could only come from a client trying to join twice.
+    if (a.peer || this.joining.has(ws)) {
+      ws.close(CLOSE.badHello, "Say hello once");
+      return;
+    }
+    this.joining.add(ws);
+    try {
+      const owner = msg.ownerToken ? await this.isOwnerToken(msg.ownerToken) : false;
+      if (!owner && room.access.mode === "password") {
+        if (!this.allowPasswordTry(ws)) {
+          ws.close(CLOSE.tooMany, "Too many password attempts. Try again in a minute.");
+          return;
+        }
+        if (!msg.password || !(await this.checkPassword(msg.password))) {
+          ws.close(CLOSE.password, msg.password ? "wrong" : "required");
+          return;
+        }
+      }
+      // Closed while we hashed: joining now would leave a peer no close
+      // event will ever remove, holding a seat in the bento.
+      if (ws.readyState !== WebSocket.OPEN) return;
+      // Seats are counted again here, not only when the socket was accepted:
+      // many sockets accepted at once could otherwise all join.
+      if (room.peers.size >= MAX_PEERS) {
+        ws.close(CLOSE.tooMany, "This bento is full");
+        return;
+      }
+      if (room.nameTaken(msg.name, msg.clientId)) {
+        ws.close(CLOSE.nameTaken, "taken");
+        return;
+      }
+      const out = room.join(a.sid, msg, owner);
+      this.attach(ws, a.sid);
+      this.dispatch(out);
+    } finally {
+      this.joining.delete(ws);
     }
   }
 
@@ -408,8 +445,37 @@ export class Box extends DurableObject<Env> {
     this.send(ws, { t: "rejected", opId, code: "rate_limited", message: "Slow down a little." });
   }
 
+  /** Writes a socket's attachment from the room: who it is and the notes it's typing in. */
+  private attach(ws: WebSocket, sid: string) {
+    const room = this.room!;
+    ws.serializeAttachment({
+      sid,
+      peer: room.peers.get(sid) ?? null,
+      leases: room.leasesOf(sid),
+    } satisfies Attachment);
+  }
+
+  /**
+   * Typing and caret moves keep a note theirs; the time goes on the holder's
+   * socket so a wake keeps it. In memory, not storage: it costs no writes.
+   */
+  private keepLeaseTime(ws: WebSocket, sid: string) {
+    if (this.room?.leases.size && Object.keys(this.room.leasesOf(sid)).length > 0) this.attach(ws, sid);
+  }
+
+  /** Re-writes every joined socket's attachment (roles or leases changed). */
+  private attachAll() {
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment() as Attachment | null;
+      if (a?.peer) this.attach(ws, a.sid);
+    }
+  }
+
   private dispatch(out: Outgoing[], skip?: WebSocket) {
     if (out.length === 0) return;
+    // Every lease change is announced, so this is the one place that keeps
+    // the holders' sockets in step: a wake then restores who's typing where.
+    if (out.some((o) => o.msg.t === "lease")) this.attachAll();
     if (out.some((o) => o.msg.t === "meta")) {
       // Renamed, settings or the creator's credit changed: save it.
       this.ctx.storage.sql.exec(
@@ -513,21 +579,49 @@ export class Box extends DurableObject<Env> {
     return timingSafeEqual(hash, await pbkdf2(password, salt));
   }
 
-  /** A bento-wide brake on guessing: 20 tries a minute across all comers. */
-  private passwordTries = new TokenBucket(20 / 60, 20, Date.now());
+  /** A bento-wide brake on guessing, across all comers. */
+  private passwordTries = new TokenBucket(PASSWORD_TRY_RATE, PASSWORD_TRY_BURST, Date.now());
+  /**
+   * A smaller one per address, spent first, so one address can't use up the
+   * bento-wide brake and lock everyone else out of the password form.
+   */
+  private passwordTriesByIp = new Map<string, TokenBucket>();
   private passwordSets = new TokenBucket(PASSWORD_SET_RATE, PASSWORD_SET_BURST, Date.now());
-  private allowPasswordTry(): boolean {
-    return this.passwordTries.take(Date.now());
+
+  private allowPasswordTry(ws: WebSocket): boolean {
+    const now = Date.now();
+    const ip = this.ctx.getTags(ws)[0] ?? "local";
+    let mine = this.passwordTriesByIp.get(ip);
+    if (!mine) {
+      // Bounded: a flood of addresses resets the per-address buckets, but
+      // the bento-wide one below still holds.
+      if (this.passwordTriesByIp.size >= 1024) this.passwordTriesByIp.clear();
+      mine = new TokenBucket(PASSWORD_TRY_IP_RATE, PASSWORD_TRY_IP_BURST, now);
+      this.passwordTriesByIp.set(ip, mine);
+    }
+    return mine.take(now) && this.passwordTries.take(now);
   }
 
   /**
-   * Every change is applied in memory and sent to everyone at once; saving
-   * it waits for the next flush. A widget dragged or retyped many
-   * times in that window is written once, so writes follow how much of the
-   * board changed, not how many messages arrived.
+   * "Confirmed" means "saved". Changes someone waits on (`now`, `removed`)
+   * are written here, in the same event as the `applied` broadcast that
+   * follows. The Durable Object's output gate holds that broadcast until the
+   * write is durable, so nobody is told about a change a restart could lose.
+   *
+   * Note text (`soon`) streams in every 80ms while someone types and is
+   * never acknowledged, so it waits for the next flush: a note retyped many
+   * times in that window is written once. A restart can lose at most the
+   * last `FLUSH_MS` of typing.
    */
   private save(persist: Persist) {
-    for (const set of [persist.now, persist.soon, persist.removed]) for (const id of set) this.dirty.add(id);
+    for (const set of [persist.now, persist.removed]) {
+      for (const id of set) {
+        this.write(id);
+        // The row now holds the latest text too.
+        this.dirty.delete(id);
+      }
+    }
+    for (const id of persist.soon) this.dirty.add(id);
     if (this.dirty.size > 0) this.scheduleFlush();
   }
 

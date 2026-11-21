@@ -246,6 +246,8 @@ function createSession(boxId: string, identity: () => Hello) {
     switch (msg.t) {
       case "welcome": {
         clockOffset = msg.now - Date.now();
+        // A new connection starts blank on the server, so the next presence goes out even if unchanged.
+        sentPresence = JSON.stringify(EMPTY_PRESENCE);
         setServer((d) => {
           d.meta = msg.box;
           d.rev = msg.rev;
@@ -276,15 +278,28 @@ function createSession(boxId: string, identity: () => Hello) {
           }
         });
         if (msg.opId && msg.by === server.sid) {
+          textOps.delete(msg.opId);
           dropPending(msg.opId);
           settleOp(msg.opId);
         }
         return;
       }
-      case "rejected":
+      case "rejected": {
         dropPending(msg.opId);
         settleOp(msg.opId, new OpRejected(msg.message));
+        // Typed text the server refused means the note isn't ours to type
+        // in any more. Let go of it here too, so the note ends the edit and
+        // keeps what didn't save.
+        const note = textOps.get(msg.opId);
+        if (note !== undefined) {
+          textOps.delete(msg.opId);
+          if (leases[note] === server.sid)
+            setLeases((d) => {
+              delete d[note];
+            });
+        }
         return;
+      }
       case "join":
         setPeers((d) => {
           d[msg.peer.sid] = msg.peer;
@@ -349,7 +364,10 @@ function createSession(boxId: string, identity: () => Hello) {
       setServer((d) => {
         d.status = status;
       });
-      if (status !== "open") failAllInflight("Lost the connection. That change wasn't saved.");
+      if (status !== "open") {
+        failAllInflight("Lost the connection. That change wasn't saved.");
+        textOps.clear();
+      }
       if (status === "reconnecting") {
         setPeers(() => ({}));
         setLeases(() => ({}));
@@ -686,6 +704,16 @@ function createSession(boxId: string, identity: () => Hello) {
   }
 
   const textTimers = new Map<string, { timer: number; text: string }>();
+  /**
+   * Typed text on its way, by opId → note id. Text isn't awaited like other
+   * ops, but a refusal still matters: it means someone else has the note.
+   */
+  const textOps = new Map<string, string>();
+
+  function sendText(id: string, text: string) {
+    const opId = randomId(8);
+    if (socket.send({ t: "op", opId, op: { type: "patch", id, text } })) textOps.set(opId, id);
+  }
 
   /** Streams typed text to everyone, coalesced to one message per 80ms. */
   function typeText(id: string, text: string) {
@@ -694,13 +722,12 @@ function createSession(boxId: string, identity: () => Hello) {
       pending.text = text;
       return;
     }
-    socket.send({ t: "op", opId: randomId(8), op: { type: "patch", id, text } });
+    sendText(id, text);
     const entry = { text, timer: 0 };
     entry.timer = window.setTimeout(() => {
       textTimers.delete(id);
       const latest = entry.text;
-      if (latest !== text)
-        socket.send({ t: "op", opId: randomId(8), op: { type: "patch", id, text: latest } });
+      if (latest !== text) sendText(id, latest);
     }, TEXT_MS);
     textTimers.set(id, entry);
   }
@@ -710,17 +737,48 @@ function createSession(boxId: string, identity: () => Hello) {
     if (!entry) return;
     clearTimeout(entry.timer);
     textTimers.delete(id);
-    socket.send({ t: "op", opId: randomId(8), op: { type: "patch", id, text: entry.text } });
+    sendText(id, entry.text);
+  }
+
+  /** Drops typed text not sent yet: the note is someone else's now. */
+  function cancelText(id: string) {
+    const entry = textTimers.get(id);
+    if (!entry) return;
+    clearTimeout(entry.timer);
+    textTimers.delete(id);
   }
 
   // ------------------------------------------------------------ presence
 
   let presence: Presence = EMPTY_PRESENCE;
+  let sentPresence = JSON.stringify(EMPTY_PRESENCE);
   let presenceTimer = 0;
   let presenceDirty = false;
+  /**
+   * True while this tab is hidden or another window has focus. Desktop
+   * browsers keep firing pointer moves over a background window; nobody is
+   * really pointing at the board then, so the cursor stays hidden and costs
+   * nothing to send. The board's own pointerleave hides it the same way.
+   */
+  let away = false;
 
-  /** Merges into your presence and sends it at most 20 times a second. */
+  function onAttention() {
+    const nowAway = document.visibilityState !== "visible" || !document.hasFocus();
+    if (nowAway === away) return;
+    away = nowAway;
+    if (away) setPresence({ cursor: null });
+  }
+  addEventListener("blur", onAttention);
+  addEventListener("focus", onAttention);
+  document.addEventListener("visibilitychange", onAttention);
+
+  /**
+   * Merges into your presence and sends it at most 20 times a second.
+   * Nothing is sent when nothing changed (the cursor is rounded to grid
+   * units, so tiny moves often don't).
+   */
   function setPresence(patch: Partial<Presence>) {
+    if (away && patch.cursor) patch = { ...patch, cursor: null };
     presence = { ...presence, ...patch };
     presenceDirty = true;
     if (presenceTimer) return;
@@ -736,7 +794,9 @@ function createSession(boxId: string, identity: () => Hello) {
 
   function flushPresence() {
     presenceDirty = false;
-    socket.send({ t: "presence", presence });
+    const json = JSON.stringify(presence);
+    if (json === sentPresence) return;
+    if (socket.send({ t: "presence", presence })) sentPresence = json;
   }
 
   function rename(name: string) {
@@ -744,6 +804,9 @@ function createSession(boxId: string, identity: () => Hello) {
   }
 
   function close() {
+    removeEventListener("blur", onAttention);
+    removeEventListener("focus", onAttention);
+    document.removeEventListener("visibilitychange", onAttention);
     clearTimeout(connectTimer);
     clearTimeout(presenceTimer);
     for (const { timer } of textTimers.values()) clearTimeout(timer);
@@ -812,6 +875,7 @@ function createSession(boxId: string, identity: () => Hello) {
     takeLease,
     releaseLease,
     typeText,
+    cancelText,
     setPresence,
     rename,
   };

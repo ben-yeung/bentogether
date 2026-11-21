@@ -170,7 +170,11 @@ function BoxView(props: {
           </div>
         )}
       </Show>
-      <Board session={props.session} onError={(m) => props.toast(m, "error")} />
+      <Board
+        session={props.session}
+        onError={(m) => props.toast(m, "error")}
+        onNotice={(m) => props.toast(m, "info")}
+      />
       <Show when={props.session.canEdit()}>
         <AddWidget session={props.session} toast={props.toast} />
       </Show>

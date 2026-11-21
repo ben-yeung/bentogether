@@ -57,18 +57,25 @@ export const MAX_SOCKETS = 40;
 export const MAX_SOCKETS_PER_IP = 8;
 /** A socket that hasn't said hello by now is closed. */
 export const HELLO_TIMEOUT_MS = 10_000;
+/** Password guesses per bento, from everyone together: 20 a minute. */
+export const PASSWORD_TRY_RATE = 20 / 60;
+export const PASSWORD_TRY_BURST = 20;
+/** Password guesses per address (spent first): 5 a minute, room for a few typos. */
+export const PASSWORD_TRY_IP_RATE = 5 / 60;
+export const PASSWORD_TRY_IP_BURST = 5;
 /** Owner password changes: each one costs a deliberately slow hash. */
 export const PASSWORD_SET_RATE = 1 / 3;
 export const PASSWORD_SET_BURST = 3;
 /**
- * SQLite rows a box may write per second while it's busy. Changes are held
- * in memory and flushed on a timer; under heavy edits the flush writes this
- * many and leaves the rest for the next one. Once edits pause, everything
- * left is written at once, so nothing is lost before the box hibernates.
+ * SQLite rows a box's flush may write per second while it's busy. Only note
+ * text waits for a flush (every other change is saved as it's confirmed);
+ * under heavy typing the flush writes this many and leaves the rest for the
+ * next one. Once edits pause, everything left is written at once, so
+ * nothing is lost before the box hibernates.
  */
 export const WRITE_RATE = 5;
 export const WRITE_BURST = 600;
-/** How often pending changes are flushed. */
+/** How often typed note text is flushed. */
 export const FLUSH_MS = 1500;
 /** No messages for this long counts as idle, and the next flush writes everything. */
 export const IDLE_MS = 2000;

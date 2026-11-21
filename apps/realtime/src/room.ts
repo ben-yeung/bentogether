@@ -28,6 +28,12 @@ import { starterBento } from "./template";
 
 export const MAX_WIDGETS = 300;
 export const MAX_PEERS = 32;
+/**
+ * A note's typist counts as away after this long without typing or moving
+ * their caret, and the next person to click in takes the note over. What
+ * they typed is already saved; nobody is cut off mid-sentence.
+ */
+export const LEASE_IDLE_MS = 30_000;
 
 /** Where an outgoing message goes. */
 export type Target = { to: "all" } | { to: "others"; except: string } | { to: "one"; sid: string };
@@ -37,10 +43,14 @@ export type Hello = { clientId: string; name: string; hue: number };
 
 /** What the room asks its host to save after handling a message. */
 export type Persist = {
-  /** Structural change (create, move, delete, color): save now. */
+  /**
+   * Any change someone waits on a confirmation for (create, move, color,
+   * a list item, a vote, a title): saved before the confirmation goes out.
+   */
   now: Set<string>;
-  /** Text typed into a note: save soon, coalesced. */
+  /** Text typed into a note, sent every 80ms while typing: saved soon, coalesced. */
   soon: Set<string>;
+  /** Deleted widgets: their rows are removed before the confirmation goes out. */
   removed: Set<string>;
 };
 
@@ -53,6 +63,8 @@ export class Room {
   readonly widgets = new Map<string, Widget>();
   readonly peers = new Map<string, Peer>();
   readonly leases = new Map<string, string>();
+  /** When each lease's holder last typed or moved their caret in it. */
+  private leaseActive = new Map<string, number>();
   /** Roles the owner gave, by device (clientId). Persisted by the host. */
   readonly roles = new Map<string, AssignableRole>();
   rev = 0;
@@ -130,9 +142,27 @@ export class Room {
     return false;
   }
 
-  /** Restores a peer after the Durable Object wakes from hibernation. */
-  restore(peer: Peer) {
+  /**
+   * Restores a peer, and the notes they were typing in with when they last
+   * typed there, after the Durable Object wakes from hibernation. Keeping
+   * that time matters: a quiet box hibernates well before a typist counts as
+   * idle, and restarting the clock at wake would mean a quiet note could
+   * never be taken over.
+   */
+  restore(peer: Peer, leases: Record<string, number> = {}) {
     this.peers.set(peer.sid, { ...peer, presence: EMPTY_PRESENCE });
+    for (const [id, active] of Object.entries(leases)) {
+      if (this.widgets.get(id)?.kind !== "note" || this.leases.has(id)) continue;
+      this.leases.set(id, peer.sid);
+      this.leaseActive.set(id, active);
+    }
+  }
+
+  /** The notes a peer is typing in and when they last did, for the host to keep on their socket. */
+  leasesOf(sid: string): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const [id, holder] of this.leases) if (holder === sid) out[id] = this.leaseActive.get(id) ?? 0;
+    return out;
   }
 
   leave(sid: string): Outgoing[] {
@@ -288,6 +318,7 @@ export class Room {
     if (!peer) return [];
     // A caret only counts inside a note you hold; a drag only on a real note.
     const caret = presence.caret && this.leases.get(presence.caret.id) === sid ? presence.caret : null;
+    if (caret) this.leaseActive.set(caret.id, this.now());
     const drag = presence.drag && this.widgets.has(presence.drag.id) ? presence.drag : null;
     // Cursors off is a box rule, not a client preference: positions never leave the server.
     const cursor = this.meta.options.cursors ? presence.cursor : null;
@@ -297,7 +328,11 @@ export class Room {
 
   // ------------------------------------------------------------- leases
 
-  /** One person types in a note at a time; everyone else watches live. */
+  /**
+   * One person types in a note at a time; everyone else watches live. A
+   * holder who has been idle for `LEASE_IDLE_MS` loses the note to the next
+   * person who asks. Their client sees the new holder and ends their edit.
+   */
   lease(sid: string, id: string, take: boolean): Outgoing[] {
     const holder = this.leases.get(id);
     if (take) {
@@ -307,11 +342,13 @@ export class Room {
       if (this.peers.get(sid)?.role === "viewer") {
         return [{ target: { to: "one", sid }, msg: { t: "lease", id, holder: holder ?? null } }];
       }
-      if (holder && holder !== sid) {
+      const idle = this.now() - (this.leaseActive.get(id) ?? 0) >= LEASE_IDLE_MS;
+      if (holder && holder !== sid && !idle) {
         return [{ target: { to: "one", sid }, msg: { t: "lease", id, holder } }];
       }
       if (holder === sid) return [];
       this.leases.set(id, sid);
+      this.leaseActive.set(id, this.now());
       return [{ target: { to: "all" }, msg: { t: "lease", id, holder: sid } }];
     }
     if (holder !== sid) return [];
@@ -374,6 +411,7 @@ export class Room {
           if (op.text !== undefined) {
             if (holder !== sid) return reject("leased", "Someone else is typing here.");
             w.text = op.text;
+            this.leaseActive.set(op.id, t);
           }
           if (op.size !== undefined) w.size = op.size;
         } else {
@@ -440,7 +478,10 @@ export class Room {
     }
 
     this.rev++;
-    const textOnly = op.type === "patch" && op.color === undefined && op.size === undefined;
+    // Only a note's streamed text is coalesced. A list title is set in one go
+    // and its sender waits for the answer, so it's saved like any other change.
+    const textOnly =
+      op.type === "patch" && op.text !== undefined && op.color === undefined && op.size === undefined;
     for (const w of upsert) (textOnly ? persist.soon : persist.now).add(w.id);
     for (const id of remove) persist.removed.add(id);
 

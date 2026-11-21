@@ -239,3 +239,54 @@
   border-radius: 4px;
   background: color-mix(in srgb, var(--lacquer) 10%, transparent);
 }
+
+/* ------------------------------------------------------- unsaved words */
+
+/* What you typed after losing the note (someone took it over, or the
+   connection dropped): kept so nothing you wrote just vanishes. */
+.unsaved {
+  /* Over the bottom of the text, which fills the body. */
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 1;
+  display: grid;
+  row-gap: 0.35em;
+  padding: 0.5em 0.6em;
+  border: 1px dashed color-mix(in srgb, var(--lacquer) 35%, transparent);
+  border-radius: 0.5em;
+  background: color-mix(in srgb, var(--lacquer) 5%, var(--bg));
+  font-family: var(--font-ui);
+  font-size: 0.7em;
+}
+
+.unsavedTitle {
+  margin: 0;
+  font-weight: 600;
+}
+
+.unsavedText {
+  margin: 0;
+  max-height: 6em;
+  overflow: auto;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.unsavedActions {
+  display: flex;
+  gap: 0.4em;
+}
+
+.unsavedActions button {
+  padding: 0.2em 0.6em;
+  border: 0;
+  border-radius: 0.4em;
+  background: color-mix(in srgb, var(--lacquer) 10%, transparent);
+  color: var(--lacquer);
+  font: inherit;
+  font-weight: 600;
+}
+
+.unsavedActions button:hover {
+  background: color-mix(in srgb, var(--lacquer) 16%, transparent);
+}

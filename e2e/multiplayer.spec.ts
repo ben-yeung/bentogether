@@ -64,6 +64,59 @@ test("a note added and typed by one person appears live for another", async ({ b
   await expect(c.locator("[data-note]").first()).toContainText("Onigiri for everyone");
 });
 
+test("a note whose typist went quiet can be taken over, and their unsent words are kept", async ({
+  browser,
+}) => {
+  // Waits out the server's idle threshold (LEASE_IDLE_MS, 30 s) for real.
+  test.setTimeout(90_000);
+  const a = await (await browser.newContext()).newPage();
+  const b = await (await browser.newContext()).newPage();
+
+  // A's link to the bento: let everything through, until `cut` holds back
+  // A's typing and caret, like words still in flight when the note changes hands.
+  let cut = false;
+  await a.routeWebSocket(/\/api\/boxes\/[a-z0-9]+\/ws$/, (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((m) => {
+      if (cut && typeof m === "string" && /"t":"(op|presence)"/.test(m)) return;
+      server.send(m);
+    });
+    server.onMessage((m) => ws.send(m));
+  });
+
+  await newBox(a, "Takeover");
+  await join(b, a.url(), "Guest");
+  await addNote(a);
+  await expect(b.locator("[data-note]")).toHaveCount(1);
+
+  await a.locator("[data-note]").first().click();
+  await a.getByLabel("Note text").pressSequentially("Half a thought", { delay: 20 });
+  await expect(b.locator("[data-note]").first()).toContainText("Half a thought");
+
+  // While A is active, the note stays theirs.
+  await b.locator("[data-note]").first().click();
+  await expect(b.getByRole("status").filter({ hasText: "is typing here" })).toBeVisible();
+
+  // A's last words never reach the bento, then A goes quiet, still in the note.
+  cut = true;
+  await a.getByLabel("Note text").pressSequentially(" and more", { delay: 20 });
+  await a.waitForTimeout(31_000);
+
+  // B takes the note over and can type.
+  await b.locator("[data-note]").first().click();
+  await expect(b.getByLabel("Note text")).toBeVisible();
+  await expect(b.getByLabel("Note text")).toHaveValue("Half a thought");
+
+  // A's edit ends, what the bento saved stays, and the unsent words are kept to copy.
+  await expect(a.getByLabel("Note text")).toHaveCount(0);
+  await expect(a.getByText(/Guest took over this note/)).toBeVisible();
+  const kept = a.locator("[data-note]").first().getByRole("status");
+  await expect(kept).toContainText("Not saved: your last words");
+  await expect(kept).toContainText("Half a thought and more");
+  await kept.getByRole("button", { name: "Dismiss" }).click();
+  await expect(kept).toHaveCount(0);
+});
+
 test("cursors show up for everyone else with the person's name", async ({ browser }) => {
   const [a, b] = await twoPeople(browser);
   await newBox(a, "Cursor check");

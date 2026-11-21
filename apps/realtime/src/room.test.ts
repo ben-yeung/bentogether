@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as v from "valibot";
 import {
+  EMPTY_PRESENCE as EMPTY,
   MIN_HUE_GAP,
   hueDistance,
   AsksWidgetSchema,
@@ -27,7 +28,7 @@ import {
   type ServerMessage,
   type TodoWidget,
 } from "@bentogether/shared";
-import { Room, type Outgoing } from "./room";
+import { LEASE_IDLE_MS, Room, type Outgoing } from "./room";
 
 const meta = {
   id: "box12345",
@@ -195,6 +196,61 @@ describe("text leases", () => {
     room.lease("s1", "note0001", true);
     const { out } = room.apply("s2", "c", { type: "patch", id: "note0001", color: "ume" });
     expect(out[0]!.msg.t).toBe("applied");
+  });
+
+  describe("idle takeover", () => {
+    function timed() {
+      let now = 1000;
+      const room = new Room(meta, [], () => now);
+      room.join("s1", hello("Mochi"));
+      room.join("s2", hello("Nori"));
+      room.apply("s1", "a", note("note0001"));
+      room.lease("s1", "note0001", true);
+      room.apply("s1", "t1", { type: "patch", id: "note0001", text: "half a thought" });
+      return { room, wait: (ms: number) => (now += ms) };
+    }
+
+    it("hands a note over once its typist has been idle, keeping what they typed", () => {
+      const { room, wait } = timed();
+      wait(LEASE_IDLE_MS);
+      const out = room.lease("s2", "note0001", true);
+      expect(out).toEqual([{ target: { to: "all" }, msg: { t: "lease", id: "note0001", holder: "s2" } }]);
+      expect((room.widgets.get("note0001") as NoteWidget).text).toBe("half a thought");
+      // The old typist's late keystrokes are refused; the client keeps them as a draft.
+      expect(
+        room.apply("s1", "t2", { type: "patch", id: "note0001", text: "half a thought!" }).out[0]!.msg.t,
+      ).toBe("rejected");
+    });
+
+    it("keeps the note while its typist types or moves their caret", () => {
+      const { room, wait } = timed();
+      wait(LEASE_IDLE_MS - 1);
+      room.apply("s1", "t2", { type: "patch", id: "note0001", text: "still here" });
+      wait(LEASE_IDLE_MS - 1);
+      room.presence("s1", { ...EMPTY, caret: { id: "note0001", start: 3, end: 3 } });
+      wait(LEASE_IDLE_MS - 1);
+      expect(room.lease("s2", "note0001", true)[0]!.target).toEqual({ to: "one", sid: "s2" });
+      expect(room.leases.get("note0001")).toBe("s1");
+    });
+
+    it("restores leases after a wake, with how long the typist had been quiet", () => {
+      let now = 50_000;
+      const before = setup();
+      before.apply("s1", "a", note("note0001"));
+      const room = new Room(meta, before.widgets.values(), () => now);
+      // Last typed 10 s before the box hibernated; a deleted note is skipped.
+      room.restore(
+        { sid: "s1", ...hello("Mochi"), role: "editor", presence: EMPTY },
+        { note0001: now - 10_000, gone0001: now },
+      );
+      expect(room.leasesOf("s1")).toEqual({ note0001: now - 10_000 });
+      room.join("s2", hello("Nori"));
+      now += LEASE_IDLE_MS - 10_001;
+      expect(room.lease("s2", "note0001", true)[0]!.target).toEqual({ to: "one", sid: "s2" });
+      now += 1;
+      expect(room.leases.get("note0001")).toBe("s1");
+      expect(room.lease("s2", "note0001", true)[0]!.target).toEqual({ to: "all" });
+    });
   });
 
   it("releases leases when the holder leaves", () => {
@@ -420,6 +476,14 @@ describe("to-do lists", () => {
     const room = setup();
     room.apply("s1", "a", { ...todo("todo0001"), rect: { x: 0, y: 0, w: 1, h: 1 } } as Op);
     expect(list(room)).toMatchObject({ kind: "todo", w: 2, h: 3, items: [], createdBy: "Mochi" });
+  });
+
+  it("saves a title before confirming it, unlike streamed note text", () => {
+    const room = setup();
+    room.apply("s1", "a", todo("todo0001"));
+    const { persist } = room.apply("s1", "b", { type: "patch", id: "todo0001", title: "Groceries" });
+    expect(persist.now.has("todo0001")).toBe(true);
+    expect(persist.soon.size).toBe(0);
   });
 
   it("two people change different items without undoing each other", () => {
