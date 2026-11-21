@@ -1,8 +1,9 @@
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
-import { CURRENCIES, SYSTEM_AUTHOR, WIDGET_TITLE_MAX, type BudgetChange } from "@bentogether/shared";
+import { CURRENCIES, SYSTEM_AUTHOR, type BudgetChange } from "@bentogether/shared";
 import { personVars } from "../../../lib/identity";
 import { editableAmount, formatMoney, parseAmount } from "../../../lib/money";
 import { ColorTools } from "../../frame/ColorTools";
+import { TitleLine } from "../../frame/parts";
 import { WidgetFrame, frameParts, type WidgetProps } from "../../frame/WidgetFrame";
 import { Select } from "../../../ui/Select";
 import styles from "./Budget.module.css";
@@ -32,18 +33,6 @@ export function Budget(props: WidgetProps) {
     return by === SYSTEM_AUTHOR ? "bento" : by;
   });
   const title = () => s().listTitle(props.id);
-
-  // ------------------------------------------------------------- title
-
-  const [titleDraft, setTitleDraft] = createSignal<string | null>(null);
-
-  function commitTitle() {
-    const next = titleDraft();
-    setTitleDraft(null);
-    s().setPresence({ action: null });
-    if (next === null || next.trim() === title()) return;
-    s().setListTitle(props.id, next.trim()).catch(fail);
-  }
 
   // ------------------------------------------------- set the total
 
@@ -148,34 +137,14 @@ export function Budget(props: WidgetProps) {
       deleteLabel="Delete budget"
       onActivate={props.readOnly || showHistory() ? undefined : activate}
     >
-      <div class={styles.head}>
-        <input
-          class={styles.title}
-          value={titleDraft() ?? title()}
-          size={Math.max(
-            2,
-            ((titleDraft() ?? title()) || (props.readOnly ? "Budget" : "Name this budget")).length,
-          )}
-          placeholder={props.readOnly ? "Budget" : "Name this budget"}
-          maxlength={WIDGET_TITLE_MAX}
-          aria-label="Budget title"
-          readonly={props.readOnly}
-          onFocus={() => {
-            if (props.readOnly) return;
-            setTitleDraft(title());
-            s().setPresence({ action: "typing" });
-          }}
-          onInput={(e) => void setTitleDraft(e.currentTarget.value)}
-          onBlur={commitTitle}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-            if (e.key === "Escape") {
-              setTitleDraft(null);
-              e.currentTarget.blur();
-            }
-          }}
-        />
-      </div>
+      <TitleLine
+        id={props.id}
+        session={s()}
+        readOnly={props.readOnly}
+        placeholder={props.readOnly ? "Budget" : "Name this budget"}
+        label="Budget title"
+        onError={props.onError}
+      />
 
       <Show
         when={showHistory()}

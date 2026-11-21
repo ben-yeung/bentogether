@@ -203,11 +203,6 @@ export function Todo(props: WidgetProps) {
 
       <footer class={frameParts.meta}>
         <span class={frameParts.byline}>by {author()}</span>
-        <Show when={items().length > 0}>
-          <span class={styles.count}>
-            {doneCount()}/{items().length}
-          </span>
-        </Show>
         <Show when={!props.readOnly}>
           <div class={frameParts.tools} data-intent="tools">
             <Show when={doneCount() > 0}>
@@ -222,6 +217,11 @@ export function Todo(props: WidgetProps) {
               onPick={(c) => s().recolor(props.id, c).catch(fail)}
             />
           </div>
+        </Show>
+        <Show when={items().length > 0}>
+          <span class={[frameParts.stat, styles.count]}>
+            {doneCount()}/{items().length}
+          </span>
         </Show>
       </footer>
     </WidgetFrame>

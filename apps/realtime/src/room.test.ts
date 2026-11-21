@@ -607,7 +607,7 @@ describe("to-do lists", () => {
     expect(full.out[0]!.msg).toMatchObject({ code: "limit" });
   });
 
-  it("sets the title, and keeps note-only and list-only changes apart", () => {
+  it("sets titles on lists and notes, and keeps note-only and list-only changes apart", () => {
     const room = setup();
     room.apply("s1", "a", todo("todo0001"));
     room.apply("s1", "n", note("note0001", 6, 0));
@@ -616,9 +616,8 @@ describe("to-do lists", () => {
     expect(room.apply("s1", "x", { type: "patch", id: "todo0001", size: "l" }).out[0]!.msg).toMatchObject({
       code: "invalid",
     });
-    expect(room.apply("s1", "y", { type: "patch", id: "note0001", title: "hi" }).out[0]!.msg).toMatchObject({
-      code: "invalid",
-    });
+    room.apply("s1", "y", { type: "patch", id: "note0001", title: " Plans " });
+    expect(room.widgets.get("note0001")).toMatchObject({ kind: "note", title: "Plans" });
     const noList = room.apply("s1", "z", item("note0001", { do: "clearDone" }));
     expect(noList.out[0]!.msg).toMatchObject({ code: "invalid" });
   });

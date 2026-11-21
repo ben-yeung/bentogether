@@ -1,10 +1,8 @@
-<img src="apps/web/public/favicon.svg" alt="" width="64" height="64" align="left">
-
-# benTogether
-
-**Pack ideas into a bento together.**
-
-<br clear="left">
+<h1>
+  <img src="apps/web/public/favicon.svg" alt="" width="56" height="56" align="left">
+  benTogether<br>
+  <sub>Pack ideas into a bento together.</sub>
+</h1>
 
 A live, multiplayer bento board. Share a link and everyone can contribute to notes, tasks, polls, events, and more.
 

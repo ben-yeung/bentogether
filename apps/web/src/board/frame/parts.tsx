@@ -252,7 +252,7 @@ export function Footer(props: {
   author: string;
   colorLabel: string;
   onError: (message: string) => void;
-  /** Beside the byline: a count, a status. */
+  /** In the bottom-right corner, after the tools: a count, a status. */
   info?: JSX.Element;
   /** Editor tools before the colors. */
   tools?: JSX.Element;
@@ -265,7 +265,6 @@ export function Footer(props: {
   return (
     <footer class={frameParts.meta}>
       <span class={frameParts.byline}>by {props.author}</span>
-      {props.info}
       <div class={[frameParts.tools, { [frameParts.toolsPinned!]: !!props.pinned }]} data-intent="tools">
         {props.viewerTools}
         <Show when={!props.readOnly}>
@@ -282,6 +281,7 @@ export function Footer(props: {
           />
         </Show>
       </div>
+      <span class={frameParts.stat}>{props.info}</span>
     </footer>
   );
 }
