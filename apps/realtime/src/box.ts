@@ -2,6 +2,7 @@ import { DurableObject } from "cloudflare:workers";
 import {
   CLOSE,
   DEFAULT_BOX_OPTIONS,
+  PROTOCOL_VERSION,
   parseClientMessage,
   randomId,
   type BoxMeta,
@@ -67,6 +68,13 @@ export class Box extends DurableObject<Env> {
   private flushScheduled = false;
   private lastActivity = 0;
   private writes = new TokenBucket(WRITE_RATE, WRITE_BURST, Date.now());
+  /**
+   * Each socket's sid, read from its attachment once. A socket's sid never
+   * changes, and `dispatch` runs for every presence update, so this saves
+   * deserializing every attachment for every message. Filled on accept and
+   * on wake, and read through `sidOf`, which fills any gap.
+   */
+  private sids = new WeakMap<WebSocket, string>();
   /** Sockets whose hello is being checked. In memory only: an event in flight keeps the object awake. */
   private joining = new WeakSet<WebSocket>();
 
@@ -81,6 +89,7 @@ export class Box extends DurableObject<Env> {
       if (this.room) {
         for (const ws of ctx.getWebSockets()) {
           const a = ws.deserializeAttachment() as Attachment | null;
+          if (a) this.sids.set(ws, a.sid);
           if (a?.peer) this.room.restore(a.peer);
         }
       }
@@ -155,7 +164,9 @@ export class Box extends DurableObject<Env> {
     } else if (fromIp >= MAX_SOCKETS_PER_IP) {
       server.close(CLOSE.tooMany, "Too many tabs open on this bento");
     } else {
-      server.serializeAttachment({ sid: randomId(10), peer: null, at: Date.now() } satisfies Attachment);
+      const sid = randomId(10);
+      server.serializeAttachment({ sid, peer: null, at: Date.now() } satisfies Attachment);
+      this.sids.set(server, sid);
     }
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -197,13 +208,19 @@ export class Box extends DurableObject<Env> {
     const limits = this.limitsFor(a.sid);
     if (!limits.all.take(this.lastActivity)) return this.strike(ws, limits);
 
+    let raw: unknown;
     let parsed;
     try {
-      parsed = parseClientMessage(
-        JSON.parse(typeof data === "string" ? data : new TextDecoder().decode(data)),
-      );
+      raw = JSON.parse(typeof data === "string" ? data : new TextDecoder().decode(data));
+      parsed = parseClientMessage(raw);
     } catch {
       parsed = null;
+    }
+    // A tab running code from before (or after) a protocol change: tell it
+    // to reload, rather than leave it waiting until it gives up.
+    if (!a.peer && isOtherVersionHello(raw)) {
+      ws.close(CLOSE.outdated, "Reload to update");
+      return;
     }
     if (!parsed?.success) {
       this.send(ws, { t: "error", code: "bad_message", message: "Message didn't match the protocol." });
@@ -484,19 +501,30 @@ export class Box extends DurableObject<Env> {
         JSON.stringify(this.room!.meta),
       );
     }
-    const sockets = this.ctx.getWebSockets().filter((ws) => ws !== skip);
-    const sidOf = new Map(sockets.map((ws) => [ws, (ws.deserializeAttachment() as Attachment | null)?.sid]));
+    // Who's on each socket, worked out once for the whole batch.
+    const sockets: Array<{ ws: WebSocket; sid: string; joined: boolean }> = [];
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === skip) continue;
+      const sid = this.sidOf(ws);
+      if (sid) sockets.push({ ws, sid, joined: this.room?.peers.has(sid) ?? false });
+    }
     for (const { target, msg } of out) {
       const payload = JSON.stringify(msg);
-      for (const ws of sockets) {
-        const sid = sidOf.get(ws);
-        if (!sid) continue;
-        const peer = this.room?.peers.has(sid);
-        if (target.to === "one" ? sid !== target.sid : !peer) continue;
+      for (const { ws, sid, joined } of sockets) {
+        if (target.to === "one" ? sid !== target.sid : !joined) continue;
         if (target.to === "others" && sid === target.except) continue;
         this.sendRaw(ws, payload);
       }
     }
+  }
+
+  private sidOf(ws: WebSocket): string | undefined {
+    let sid = this.sids.get(ws);
+    if (sid === undefined) {
+      sid = (ws.deserializeAttachment() as Attachment | null)?.sid;
+      if (sid !== undefined) this.sids.set(ws, sid);
+    }
+    return sid;
   }
 
   private send(ws: WebSocket, msg: ServerMessage) {
@@ -687,4 +715,11 @@ async function pbkdf2(password: string, salt: string): Promise<string> {
     256,
   );
   return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** A hello that's well formed apart from naming another protocol version. */
+function isOtherVersionHello(raw: unknown): boolean {
+  if (typeof raw !== "object" || raw === null) return false;
+  const m = raw as { t?: unknown; v?: unknown };
+  return m.t === "hello" && typeof m.v === "number" && m.v !== PROTOCOL_VERSION;
 }

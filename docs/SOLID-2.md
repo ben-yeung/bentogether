@@ -280,6 +280,22 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
   closed the editor mid-sentence. You now stay in `peers` while the line is
   down.
 
+### 17. Server data is merged leaf by leaf
+
+- **Where:** `board/session.ts` (`mergeInto`): presence, widgets, the
+  bento's meta
+- **Primitive:** store drafts, assigned per field
+- **Finding (dev diagnostics):** `peers[sid].presence = msg.presence`, and
+  `Object.assign` of a widget whose nested `view` object arrived fresh,
+  triggered `IMMUTABLE_UPDATE_IN_STORE`. A new container makes every reader
+  of any part of it re-run. For presence that's 20 times a second per
+  person.
+- **Shape:** `mergeInto(target, next)` walks plain objects and assigns only
+  the leaves that differ. Arrays (list items, events) and nulls are set
+  whole, because merging an array by position would keep removed items.
+- **Check:** a session test asserts a peer's `cursor` keeps its identity
+  across updates, and the e2e suite runs with no warnings.
+
 ---
 
 _Next up:_ `createProjection` for filtering widgets by type and value,

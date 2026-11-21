@@ -739,12 +739,11 @@ export type ServerMessage =
       peers: Peer[];
       box: BoxMeta;
       widgets: Widget[];
-      rev: number;
       /** The server's clock, so timers count down the same everywhere. */
       now: number;
     }
   /** Confirmed changes, from anyone. `opId` is set for the sender's own op. */
-  | { t: "applied"; rev: number; by: string; opId?: string; upsert: Widget[]; remove: string[] }
+  | { t: "applied"; by: string; opId?: string; upsert: Widget[]; remove: string[] }
   | { t: "rejected"; opId: string; code: RejectCode; message: string }
   | { t: "join"; peer: Peer }
   | { t: "leave"; sid: string }
@@ -786,6 +785,8 @@ export const CLOSE = {
   nameTaken: 4409,
   /** Cloudflare's free daily quota is used up; back after 00:00 UTC. */
   overCapacity: 4503,
+  /** The tab's code speaks an older (or newer) protocol: reload to update. */
+  outdated: 4426,
   /** The creator deleted the bento. */
   deleted: 4410,
 } as const;

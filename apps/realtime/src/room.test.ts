@@ -118,7 +118,6 @@ describe("ops", () => {
     expect(applied.t === "applied" && applied.opId).toBe("op1");
     expect(room.widgets.get("note0001")?.createdBy).toBe("Mochi");
     expect(persist.now.has("note0001")).toBe(true);
-    expect(room.rev).toBe(1);
   });
 
   it("rejects a duplicate id to the sender only", () => {

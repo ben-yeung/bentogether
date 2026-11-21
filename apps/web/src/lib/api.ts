@@ -33,6 +33,17 @@ export class Unreachable extends Error {
   }
 }
 
+/**
+ * This tab's code and the server speak different protocol versions: we
+ * shipped an update since the page loaded. Reloading fetches the new code.
+ */
+export class Outdated extends Error {
+  constructor() {
+    super("benTogether was updated since this page loaded.\nReload to get the new version.");
+    this.name = "Outdated";
+  }
+}
+
 /** Meta plus live counts and the colors of whoever is there right now. */
 export type BoxInfo = BoxMeta & { people: number; widgetCount: number; hues?: number[] };
 

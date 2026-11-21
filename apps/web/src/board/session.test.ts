@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, flush } from "solid-js";
+import { CLOSE } from "@bentogether/shared";
 import type { ClientMessage, ServerMessage, Widget } from "@bentogether/shared";
 import { openSession, type BoxSession } from "./session";
 
@@ -75,7 +76,6 @@ async function connect(widgets: Widget[] = []): Promise<[BoxSession, FakeSocket]
       options: { cursors: true, autoPack: true },
     },
     widgets,
-    rev: 0,
     now: Date.now(),
   });
   return [await ready, ws];
@@ -104,7 +104,7 @@ describe("optimistic overlay", () => {
       createdAt: 1,
       updatedAt: 1,
     };
-    ws.deliver({ t: "applied", rev: 1, by: peer.sid, opId: op.opId, upsert: [confirmed], remove: [] });
+    ws.deliver({ t: "applied", by: peer.sid, opId: op.opId, upsert: [confirmed], remove: [] });
     await done;
     await tick();
     expect(s.ids()).toEqual([id]);
@@ -139,7 +139,7 @@ describe("optimistic overlay", () => {
       createdAt: 0,
       updatedAt: 0,
     };
-    ws.deliver({ t: "applied", rev: 1, by: "other00001", upsert: [theirs], remove: [] });
+    ws.deliver({ t: "applied", by: "other00001", upsert: [theirs], remove: [] });
     await tick();
     // Not held behind our pending create: see docs/SOLID-2.md, ledger 1.
     expect(s.ids()).toContain("theirs000001");
@@ -148,6 +148,27 @@ describe("optimistic overlay", () => {
 });
 
 describe("connection", () => {
+  it("asks for a reload when the server speaks a newer protocol", async () => {
+    let ready!: Promise<BoxSession>;
+    createRoot((d) => {
+      dispose = d;
+      ready = openSession("box0000001", () => identity);
+    });
+    const ws = FakeSocket.last;
+    ws.open();
+    ws.onclose?.({ code: CLOSE.outdated, reason: "Reload to update" });
+    await expect(ready).rejects.toMatchObject({ name: "Outdated" });
+  });
+
+  it("pauses an open bento with a reload notice after an update", async () => {
+    const [s, ws] = await connect();
+    ws.readyState = 3;
+    ws.onclose?.({ code: CLOSE.outdated, reason: "" });
+    flush();
+    expect(s.server.notice).toMatch(/Reload to get the new version/);
+    expect(s.server.status).toBe("closed");
+  });
+
   it("going online while still connecting replaces the attempt without joining twice", async () => {
     createRoot((d) => {
       dispose = d;
@@ -169,6 +190,23 @@ describe("connection", () => {
 
 describe("presence", () => {
   const presences = (ws: FakeSocket) => ws.sent.filter((m) => m.t === "presence");
+
+  it("updates someone's presence field by field, keeping the same objects", async () => {
+    const [s, ws] = await connect();
+    const bob = { ...peer, sid: "bob0000001", name: "Bob", presence };
+    ws.deliver({ t: "join", peer: bob });
+    const at = (x: number) => ({ ...presence, cursor: { x, y: 2 } });
+    ws.deliver({ t: "presence", sid: bob.sid, presence: at(1) });
+    flush();
+    const cursor = s.peers[bob.sid]!.presence.cursor;
+    ws.deliver({ t: "presence", sid: bob.sid, presence: at(3) });
+    flush();
+    expect(s.peers[bob.sid]!.presence.cursor).toBe(cursor);
+    expect(cursor).toEqual({ x: 3, y: 2 });
+    ws.deliver({ t: "presence", sid: bob.sid, presence });
+    flush();
+    expect(s.peers[bob.sid]!.presence.cursor).toBeNull();
+  });
 
   it("doesn't send a presence that didn't change", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
@@ -242,7 +280,6 @@ describe("typing in a note", () => {
     peers: [],
     box: { id: "box0000001", title: "Lunch", createdAt: 0, options: { cursors: true, autoPack: true } },
     widgets,
-    rev: 0,
     now: Date.now(),
   });
 
