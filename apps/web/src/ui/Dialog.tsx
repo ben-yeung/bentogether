@@ -46,7 +46,8 @@ function DialogBody(props: {
       panel.querySelector<HTMLElement>("input, select, button:not([aria-label='Close'])");
     first?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      // An open <Select> list takes Esc for itself.
+      if (e.key === "Escape" && !(e.target as Element | null)?.closest?.('[role="listbox"]')) {
         e.stopPropagation();
         props.onClose();
       }

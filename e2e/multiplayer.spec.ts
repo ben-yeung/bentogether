@@ -172,7 +172,8 @@ test("the creator makes a guest a viewer from Share; the server holds them to it
 
   await a.getByRole("button", { name: "Share" }).click();
   const share = a.getByRole("dialog", { name: "Share this bento" });
-  await share.getByLabel("What Guest can do").selectOption("viewer");
+  await share.getByRole("button", { name: "What Guest can do" }).click();
+  await share.getByRole("option", { name: "Can view" }).click();
   await share.getByRole("button", { name: "Close" }).click();
 
   await expect(b.getByText("View only")).toBeVisible();
@@ -180,8 +181,8 @@ test("the creator makes a guest a viewer from Share; the server holds them to it
 
   // Guests see Share read-only.
   await b.getByRole("button", { name: "Share" }).click();
-  await expect(b.getByText("Only the creator can change who can join or edit.")).toBeVisible();
-  await expect(b.getByLabel("Who can join")).toBeDisabled();
+  await expect(b.getByText("Ask the bento's owner to invite more people.")).toBeVisible();
+  await expect(b.getByRole("button", { name: "Who can join" })).toBeDisabled();
 
   // The role sticks to the guest's device across a reload.
   await b.reload();
@@ -193,7 +194,8 @@ test("a password protected bento asks newcomers for the password", async ({ brow
   await newBox(a, "Secret");
   await a.getByRole("button", { name: "Share" }).click();
   const share = a.getByRole("dialog", { name: "Share this bento" });
-  await share.getByLabel("Who can join").selectOption("password");
+  await share.getByRole("button", { name: "Who can join" }).click();
+  await share.getByRole("option", { name: "Password protected" }).click();
   await share.getByLabel("Password").fill("onigiri");
   await share.getByRole("button", { name: "Set password" }).click();
   await expect(a.getByText("Password saved.")).toBeVisible();
@@ -364,7 +366,8 @@ test("a budget is shared live: set, subtract and add together, history and curre
 
   // Switching currency keeps the number.
   await budgetA.hover();
-  await budgetA.getByLabel("Currency").selectOption("EUR");
+  await budgetA.getByRole("button", { name: "Currency" }).click();
+  await budgetA.getByRole("option", { name: "EUR" }).click();
   await expect(budgetB.getByRole("button", { name: /Set the amount/ })).toContainText("460");
   await expect(budgetB.getByRole("button", { name: /Set the amount/ })).toContainText("€");
 });

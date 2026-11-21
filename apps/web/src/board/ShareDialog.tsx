@@ -2,10 +2,19 @@ import { createMemo, createSignal, For, Show } from "solid-js";
 import { PASSWORD_MAX, PASSWORD_MIN, type AssignableRole, type Peer } from "@bentogether/shared";
 import { personVars } from "../lib/identity";
 import { Dialog } from "../ui/Dialog";
+import { Select } from "../ui/Select";
 import type { BoxSession } from "./session";
 import styles from "./ShareDialog.module.css";
 
 const ROLE_LABEL: Record<AssignableRole, string> = { editor: "Can edit", viewer: "Can view" };
+const ROLE_OPTIONS = [
+  { value: "editor", label: ROLE_LABEL.editor },
+  { value: "viewer", label: ROLE_LABEL.viewer },
+] as const satisfies readonly { value: AssignableRole; label: string }[];
+const MODE_OPTIONS = [
+  { value: "link", label: "Anyone with the link" },
+  { value: "password", label: "Password protected" },
+] as const;
 
 /**
  * Share, Drive-style: the link to copy, who's viewing the bento and what each of
@@ -84,7 +93,7 @@ function ShareBody(props: {
           Share <span class={styles.boxName}>“{s().title()}”</span>
         </h2>
         <Show when={!owner()}>
-          <p class={styles.note}>Only the creator can change who can join or edit.</p>
+          <p class={styles.note}>Ask the bento's owner to invite more people.</p>
         </Show>
       </header>
 
@@ -139,19 +148,14 @@ function ShareBody(props: {
                   when={owner() && p().role !== "owner"}
                   fallback={<span class={styles.roleText}>{roleText(p())}</span>}
                 >
-                  <select
+                  <Select
                     class={["field-select", styles.select]}
-                    aria-label={`What ${p().name} can do`}
-                    value={p().role}
-                    onChange={(e) =>
-                      s()
-                        .setRole(p().sid, e.currentTarget.value as AssignableRole)
-                        .catch(fail)
-                    }
-                  >
-                    <option value="editor">{ROLE_LABEL.editor}</option>
-                    <option value="viewer">{ROLE_LABEL.viewer}</option>
-                  </select>
+                    label={`What ${p().name} can do`}
+                    align="end"
+                    value={p().role as AssignableRole}
+                    options={ROLE_OPTIONS}
+                    onChange={(role) => s().setRole(p().sid, role).catch(fail)}
+                  />
                 </Show>
               </li>
             )}
@@ -179,20 +183,18 @@ function ShareBody(props: {
               </svg>
             </Show>
           </span>
-          <select
+          <Select
             class={["field-select", styles.selectPlain]}
-            aria-label="Who can join"
+            label="Who can join"
             value={mode()}
+            options={MODE_OPTIONS}
             disabled={!owner()}
-            onChange={(e) => chooseMode(e.currentTarget.value as "link" | "password")}
-          >
-            <option value="link">Anyone with the link</option>
-            <option value="password">Password protected</option>
-          </select>
+            onChange={chooseMode}
+          />
           <span class={styles.accessStatus}>
             {mode() === "password"
               ? s().access().mode === "password"
-                ? "People need the password to join. You don't."
+                ? "A password is required for new visitors."
                 : "Set a password to turn this on."
               : "Anyone with the link can join."}
           </span>
@@ -222,20 +224,15 @@ function ShareBody(props: {
             New visitors
             <span class={styles.accessHint}>Default permissions assigned when they join.</span>
           </span>
-          <select
+          <Select
             class={["field-select", styles.select]}
-            aria-label="What new visitors can do"
+            label="What new visitors can do"
+            align="end"
             value={s().access().defaultRole}
+            options={ROLE_OPTIONS}
             disabled={!owner()}
-            onChange={(e) =>
-              s()
-                .setAccess({ defaultRole: e.currentTarget.value as AssignableRole })
-                .catch(fail)
-            }
-          >
-            <option value="editor">{ROLE_LABEL.editor}</option>
-            <option value="viewer">{ROLE_LABEL.viewer}</option>
-          </select>
+            onChange={(defaultRole) => s().setAccess({ defaultRole }).catch(fail)}
+          />
         </div>
       </section>
     </div>
@@ -247,5 +244,5 @@ function rank(p: Peer) {
 }
 
 function roleText(p: Peer) {
-  return p.role === "owner" ? "Creator" : ROLE_LABEL[p.role];
+  return p.role === "owner" ? "Owner" : ROLE_LABEL[p.role];
 }

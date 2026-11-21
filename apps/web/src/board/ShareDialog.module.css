@@ -189,7 +189,7 @@
   gap: 0.7rem;
 }
 
-/* Right-aligned, like a person's role ("Creator") above. */
+/* Right-aligned, like a person's role ("Owner") above. */
 .accessStatus {
   flex: 1;
   min-width: 0;

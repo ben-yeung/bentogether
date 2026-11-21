@@ -33,7 +33,8 @@ async function add(page: Page, name: string) {
 async function makeViewer(owner: Page, guest: Page) {
   await owner.getByRole("button", { name: "Share" }).click();
   const share = owner.getByRole("dialog", { name: "Share this bento" });
-  await share.getByLabel("What Guest can do").selectOption("viewer");
+  await share.getByRole("button", { name: "What Guest can do" }).click();
+  await share.getByRole("option", { name: "Can view" }).click();
   await share.getByRole("button", { name: "Close" }).click();
   await expect(guest.getByText("View only")).toBeVisible();
 }

@@ -116,6 +116,7 @@
 
 .frame:hover .tools,
 .frame:focus-within .tools,
+.tools:has([aria-expanded="true"]),
 .tools.toolsPinned {
   opacity: 1;
   pointer-events: auto;
