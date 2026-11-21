@@ -1,0 +1,97 @@
+<svg viewBox="0 0 980 420" width="980" height="420" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">benTogether architecture</title>
+  <desc id="desc">Browsers connect over one WebSocket to a Cloudflare Worker, which routes each box to its own Durable Object. The object wraps the Room rules class, SQLite storage and hibernating sockets. packages/shared runs on both sides.</desc>
+  <style>
+    svg { --rice: #f6f1e7; --raised: #fbf8f2; --sunk: #ece4d4; --ink: #1f1a17; --soft: #5b514a; --faint: #8f8378; --bamboo: #ddd1bb; --shu: #c8442f; }
+    @media (prefers-color-scheme: dark) {
+      svg { --rice: #171311; --raised: #211b18; --sunk: #120f0d; --ink: #efe7da; --soft: #b9ada0; --faint: #8f8378; --bamboo: #3a312b; --shu: #e0634d; }
+    }
+    text { font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--ink); font-size: 13px; }
+    .h { font-family: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 700; font-size: 15px; }
+    .b { font-weight: 600; }
+    .s { font-size: 12.5px; }
+    .m { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; fill: var(--soft); }
+    .ms { fill: var(--shu); }
+    .bg { fill: var(--rice); }
+    .frame { fill: var(--raised); stroke: var(--ink); stroke-width: 2; }
+    .inner { fill: var(--sunk); }
+    .group { fill: none; stroke: var(--faint); stroke-width: 1.4; stroke-dasharray: 5 5; }
+    .edge { stroke: var(--soft); stroke-width: 1.6; fill: none; }
+    .edge-shu { stroke: var(--shu); stroke-width: 2; fill: none; }
+    .arrow { fill: var(--soft); }
+    .arrow-shu { fill: var(--shu); }
+  </style>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrow" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="ars" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrow-shu" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="980" height="420" rx="22"/>
+
+  <!-- Cloudflare group -->
+  <rect class="group" x="362" y="12" width="606" height="308" rx="22"/>
+  <text class="m" x="378" y="306">Cloudflare</text>
+
+  <!-- Browser -->
+  <rect class="frame" x="14" y="24" width="300" height="290" rx="18"/>
+  <text class="h" x="34" y="54">Browser · Solid 2.0</text>
+  <text class="m" x="34" y="72">apps/web · served by Vercel</text>
+  <rect class="inner" x="32" y="86" width="264" height="36" rx="9"/>
+  <text x="46" y="109">server store · confirmed truth</text>
+  <rect class="inner" x="32" y="128" width="264" height="36" rx="9"/>
+  <text x="46" y="151">optimistic overlay · actions</text>
+  <rect class="inner" x="32" y="170" width="264" height="36" rx="9"/>
+  <text x="46" y="193">pending store · bursty list edits</text>
+  <rect class="inner" x="32" y="212" width="264" height="36" rx="9"/>
+  <text x="46" y="235">typing · 1 edit in flight + buffer</text>
+  <rect class="inner" x="32" y="254" width="264" height="36" rx="9"/>
+  <text x="46" y="277">presence · ≤ 20 Hz, focused tabs</text>
+
+  <!-- Worker -->
+  <rect class="frame" x="384" y="24" width="200" height="150" rx="18"/>
+  <text class="h" x="404" y="54">Worker</text>
+  <text class="m" x="404" y="72">apps/realtime/src/index.ts</text>
+  <text x="404" y="98">origin check, rate limit,</text>
+  <text x="404" y="118">create box, route socket</text>
+  <text class="m" x="404" y="144">POST /api/boxes</text>
+  <text class="m" x="404" y="160">GET  /api/boxes/:id/ws</text>
+
+  <!-- Box Durable Object -->
+  <rect class="frame" x="650" y="24" width="300" height="290" rx="18"/>
+  <text class="h" x="670" y="54">Box Durable Object</text>
+  <text class="m" x="670" y="72">box.ts · one per box, getByName(id)</text>
+  <rect class="inner" x="668" y="86" width="264" height="56" rx="9"/>
+  <text class="b" x="682" y="109">Room · room.ts</text>
+  <text class="s" x="682" y="129">pure rules: ops, roles, text history</text>
+  <rect class="inner" x="668" y="150" width="264" height="56" rx="9"/>
+  <text class="b" x="682" y="173">SQLite storage</text>
+  <text class="s" x="682" y="193">widgets, meta, roles, password hash</text>
+  <rect class="inner" x="668" y="214" width="264" height="76" rx="9"/>
+  <text class="b" x="682" y="237">Hibernating WebSockets</text>
+  <text class="s" x="682" y="257">who each socket is, in its attachment</text>
+  <text class="s" x="682" y="277">pings answered without waking</text>
+
+  <!-- edges -->
+  <text class="m" x="322" y="56">wss</text>
+  <path class="edge" d="M314 64 H376" marker-end="url(#ar)"/>
+  <path class="edge" d="M584 80 H642" marker-end="url(#ar)"/>
+  <text class="m" x="480" y="206" text-anchor="middle">hello · op · text · presence</text>
+  <path class="edge" d="M318 216 H642" marker-end="url(#ar)"/>
+  <text class="m ms" x="480" y="258" text-anchor="middle">welcome · applied · text · presence</text>
+  <path class="edge-shu" d="M646 268 H322" marker-end="url(#ars)"/>
+
+  <!-- packages/shared -->
+  <rect class="frame" x="14" y="336" width="936" height="70" rx="18"/>
+  <text class="h" x="34" y="366">packages/shared</text>
+  <text class="m" x="34" y="384">runs on both sides</text>
+  <rect class="inner" x="226" y="351" width="136" height="40" rx="9"/>
+  <text class="s" x="294" y="375" text-anchor="middle">protocol · valibot</text>
+  <rect class="inner" x="370" y="351" width="136" height="40" rx="9"/>
+  <text class="s" x="438" y="375" text-anchor="middle">grid units</text>
+  <rect class="inner" x="514" y="351" width="136" height="40" rx="9"/>
+  <text class="s" x="582" y="375" text-anchor="middle">settle() layout</text>
+  <rect class="inner" x="658" y="351" width="136" height="40" rx="9"/>
+  <text class="s" x="726" y="375" text-anchor="middle">text OT</text>
+  <rect class="inner" x="802" y="351" width="130" height="40" rx="9"/>
+  <text class="s" x="867" y="375" text-anchor="middle">identity</text>
+</svg>

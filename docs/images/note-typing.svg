@@ -1,0 +1,101 @@
+<svg viewBox="0 0 980 470" width="980" height="470" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Two people typing in one note</title>
+  <desc id="desc">Alice and Bob both start from version 1, "hello". Alice appends "!" and Bob prepends "Oh, " at the same moment. The box applies Alice's edit first as version 2, then moves Bob's edit past it as version 3. Each browser moves its own unconfirmed typing past what arrives, so both end with "Oh, hello!".</desc>
+  <style>
+    svg { --rice: #f6f1e7; --raised: #fbf8f2; --sunk: #ece4d4; --ink: #1f1a17; --soft: #5b514a; --faint: #8f8378; --bamboo: #ddd1bb; --shu: #c8442f; --ok: #2f7a4a; --note: #f1e39a; --note-ink: #1f1a17; --alice: #2f6fd0; --bob: #23864b; }
+    @media (prefers-color-scheme: dark) {
+      svg { --rice: #171311; --raised: #211b18; --sunk: #120f0d; --ink: #efe7da; --soft: #b9ada0; --faint: #8f8378; --bamboo: #3a312b; --shu: #e0634d; --ok: #7cc797; --note: #cdbf7a; --note-ink: #1f1a17; --alice: #1f56b0; --bob: #17683a; }
+    }
+    text { font-family: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--ink); font-size: 13px; }
+    .h { font-family: "Bricolage Grotesque", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 700; font-size: 15px; }
+    .b { font-weight: 600; }
+    .s { font-size: 12.5px; fill: var(--soft); }
+    .m { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; fill: var(--soft); }
+    .ms { fill: var(--shu); }
+    .bg { fill: var(--rice); }
+    .frame { fill: var(--raised); stroke: var(--ink); stroke-width: 2; }
+    .inner { fill: var(--sunk); }
+    .note { fill: var(--note); }
+    .nt { fill: var(--note-ink); font-size: 18px; }
+    .nm { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; fill: var(--note-ink); opacity: 0.72; }
+    .a { fill: var(--alice); font-weight: 700; }
+    .bb { fill: var(--bob); font-weight: 700; }
+    .ok { fill: #2f7a4a; font-weight: 600; font-size: 12.5px; }
+    .life { stroke: var(--bamboo); stroke-width: 2; stroke-dasharray: 2 6; stroke-linecap: round; }
+    .edge { stroke: var(--soft); stroke-width: 1.6; fill: none; }
+    .edge-shu { stroke: var(--shu); stroke-width: 2; fill: none; }
+    .arrow { fill: var(--soft); }
+    .arrow-shu { fill: var(--shu); }
+  </style>
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrow" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="ars" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrow-shu" d="M0,0 L10,5 L0,10 z"/></marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="980" height="470" rx="22"/>
+
+  <path class="life" d="M150 66 V452"/>
+  <path class="life" d="M490 66 V452"/>
+  <path class="life" d="M830 66 V452"/>
+
+  <rect class="frame" x="40" y="18" width="220" height="48" rx="14"/>
+  <text class="h" x="150" y="47" text-anchor="middle">Alice</text>
+  <rect class="frame" x="380" y="18" width="220" height="48" rx="14"/>
+  <text class="h" x="490" y="47" text-anchor="middle">Box Durable Object</text>
+  <rect class="frame" x="720" y="18" width="220" height="48" rx="14"/>
+  <text class="h" x="830" y="47" text-anchor="middle">Bob</text>
+
+  <!-- v1 -->
+  <rect class="inner" x="380" y="84" width="220" height="52" rx="10"/>
+  <text class="b" x="400" y="105">v1 · “hello”</text>
+  <text class="s" x="400" y="124">both start here</text>
+
+  <!-- local typing -->
+  <rect class="note" x="40" y="84" width="220" height="64" rx="12"/>
+  <text class="nm" x="58" y="104">types against v1</text>
+  <text class="nt" x="58" y="132">hello<tspan class="a">!</tspan></text>
+  <text class="nm" x="244" y="132" text-anchor="end">[5, "!"]</text>
+
+  <rect class="note" x="720" y="84" width="220" height="64" rx="12"/>
+  <text class="nm" x="738" y="104">at the same moment, v1</text>
+  <text class="nt" x="738" y="132"><tspan class="bb">Oh, </tspan>hello</text>
+  <text class="nm" x="924" y="132" text-anchor="end">["Oh, "]</text>
+
+  <!-- sends -->
+  <text class="m" x="320" y="176" text-anchor="middle">text · v1 · [5, "!"]</text>
+  <path class="edge" d="M150 184 H482" marker-end="url(#ar)"/>
+  <text class="m" x="660" y="230" text-anchor="middle">text · v1 · ["Oh, "]</text>
+  <path class="edge" d="M830 238 H498" marker-end="url(#ar)"/>
+
+  <!-- server -->
+  <rect class="inner" x="380" y="196" width="220" height="30" rx="10"/>
+  <text class="b" x="400" y="216">v2 · “hello!”  <tspan class="s">applied as is</tspan></text>
+
+  <rect class="inner" x="380" y="252" width="220" height="70" rx="10"/>
+  <text class="b" x="400" y="273">v3 · “Oh, hello!”</text>
+  <text class="s" x="400" y="292">Bob's edit missed v2,</text>
+  <text class="m" x="400" y="310">moved past it: still ["Oh, "]</text>
+
+  <!-- broadcasts -->
+  <text class="m ms" x="320" y="344" text-anchor="middle">Bob's edit · ["Oh, "]</text>
+  <path class="edge-shu" d="M490 352 H158" marker-end="url(#ars)"/>
+  <text class="m ms" x="660" y="344" text-anchor="middle">Alice's edit · [5, "!"]</text>
+  <path class="edge-shu" d="M490 352 H822" marker-end="url(#ars)"/>
+  <circle cx="490" cy="352" r="4" fill="var(--shu)"/>
+
+  <rect class="note" x="40" y="370" width="220" height="74" rx="12"/>
+  <text class="nm" x="58" y="390">applies it as it comes</text>
+  <text class="nt" x="58" y="418"><tspan class="bb">Oh, </tspan>hello<tspan class="a">!</tspan></text>
+  <text class="ok" x="58" y="436">✓ v3</text>
+
+  <rect class="note" x="720" y="370" width="220" height="74" rx="12"/>
+  <text class="nm" x="738" y="390">moves his own typing past it</text>
+  <text class="nt" x="738" y="418"><tspan class="bb">Oh, </tspan>hello<tspan class="a">!</tspan></text>
+  <text class="ok" x="738" y="436">✓ v3</text>
+  <text class="nm" x="924" y="436" text-anchor="end">sees [9, "!"]</text>
+
+  <rect class="inner" x="380" y="370" width="220" height="74" rx="10"/>
+  <text class="b" x="400" y="392">Same text everywhere</text>
+  <text class="s" x="400" y="411">one order, kept by the box</text>
+  <text class="s" x="400" y="429">last 200 edits per note</text>
+</svg>
