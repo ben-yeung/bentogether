@@ -13,6 +13,7 @@ import {
   applyWidgetChange,
   blankFields,
   voterKey,
+  mayDelete,
   findSpot,
   randomId,
   settle,
@@ -444,7 +445,12 @@ function createSession(boxId: string, identity: () => Hello) {
     const size = WIDGET_SIZE[kind].default;
     const rect = findSpot(rects(), size.w, size.h);
     const now = serverNow();
-    const stamp = { createdBy: peers[server.sid]?.name ?? "you", createdAt: now, updatedAt: now };
+    const stamp = {
+      createdBy: peers[server.sid]?.name ?? "you",
+      creatorKey: voter(),
+      createdAt: now,
+      updatedAt: now,
+    };
     const base = { id, ...rect, color, ...stamp };
     setPending((d) => {
       d.created[opId] =
@@ -789,6 +795,11 @@ function createSession(boxId: string, identity: () => Hello) {
     canEdit: () => {
       const r = peers[server.sid]?.role;
       return r === "owner" || r === "editor";
+    },
+    /** The owner deletes anything; editors only widgets they added. */
+    canDelete: (id: string) => {
+      const w = base(id);
+      return !!w && mayDelete(w, peers[server.sid]?.role ?? "viewer", voter());
     },
     access: (): Access => server.meta?.access ?? DEFAULT_ACCESS,
     // actions
