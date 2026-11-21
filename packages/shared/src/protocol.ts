@@ -1,12 +1,13 @@
 import * as v from "valibot";
 import { GRID_COLS, GRID_MAX_ROWS } from "./grid";
+import type { TextOp } from "./text";
 
 /**
  * Wire protocol between a browser and a box's Durable Object, over one
  * WebSocket. JSON messages, discriminated by `t`. Everything a client sends
  * is validated with these schemas before the server acts on it.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 // ---------------------------------------------------------------- primitives
 
@@ -61,6 +62,11 @@ export const NoteWidgetSchema = v.object({
   color: NoteColorSchema,
   /** Optional on the wire so notes saved before sizes existed still parse. */
   size: v.optional(TextSizeSchema),
+  /**
+   * How many edits the text has had; typed edits name the version they were
+   * made against (see text.ts). Missing on notes nobody has typed in yet.
+   */
+  tv: v.optional(v.number()),
   createdBy: v.string(),
   creatorKey: CreatorKey,
   createdAt: v.number(),
@@ -376,6 +382,20 @@ export type FramedWidget = Extract<Widget, { kind: FramedKind }>;
 
 // ----------------------------------------------------------------------- ops
 
+const Span = Int(1, NOTE_TEXT_MAX);
+/** An edit to a note's text: keep n, insert a string, delete n (text.ts). */
+export const TextOpSchema = v.pipe(
+  v.array(
+    v.union([
+      Span,
+      v.pipe(v.string(), v.minLength(1), v.maxLength(NOTE_TEXT_MAX)),
+      v.strictObject({ d: Span }),
+    ]),
+  ),
+  v.minLength(1),
+  v.maxLength(200),
+) satisfies v.GenericSchema<unknown, TextOp>;
+
 /**
  * One change to one item inside a list widget. Each touches a single
  * item, so two people can tick different items at the same moment without
@@ -538,8 +558,6 @@ export const OpSchema = v.variant("type", [
   v.object({
     type: v.literal("patch"),
     id: Id,
-    /** Notes only, and only by whoever holds the note's lease. */
-    text: v.optional(v.pipe(v.string(), v.maxLength(NOTE_TEXT_MAX))),
     color: v.optional(NoteColorSchema),
     /** Notes only. */
     size: v.optional(TextSizeSchema),
@@ -552,6 +570,19 @@ export const OpSchema = v.variant("type", [
   v.object({ type: v.literal("budget"), id: Id, change: BudgetChangeSchema }),
   v.object({ type: v.literal("change"), id: Id, change: WidgetChangeSchema }),
   v.object({ type: v.literal("delete"), id: Id }),
+  /**
+   * Typing in a note: an edit made against version `base` of its text. The
+   * server moves it past anything applied since, so people can type at once.
+   * `resend` is set when a reconnecting client sends an edit again that it
+   * never heard back about: the server then replays what it missed first.
+   */
+  v.object({
+    type: v.literal("text"),
+    id: Id,
+    base: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    ops: TextOpSchema,
+    resend: v.optional(v.boolean()),
+  }),
 ]);
 export type Op = v.InferOutput<typeof OpSchema>;
 export type OpInput = v.InferInput<typeof OpSchema>;
@@ -626,7 +657,6 @@ export const ClientMessageSchema = v.variant("t", [
   }),
   v.object({ t: v.literal("op"), opId: v.pipe(v.string(), v.maxLength(40)), op: OpSchema }),
   v.object({ t: v.literal("presence"), presence: PresenceSchema }),
-  v.object({ t: v.literal("lease"), id: Id, take: v.boolean() }),
   v.object({ t: v.literal("rename"), name: NameSchema }),
   /** Rename the bento itself. Owner only. */
   v.object({ t: v.literal("retitle"), opId: v.pipe(v.string(), v.maxLength(40)), title: TitleSchema }),
@@ -697,9 +727,6 @@ export type BoxMeta = {
 /** What `POST /api/boxes` returns: the meta, plus the owner token, shown once. */
 export type CreatedBox = BoxMeta & { ownerToken: string };
 
-/** sid of the person editing each note's text, if anyone. */
-export type Leases = Record<string, string>;
-
 export type ServerMessage =
   | {
       t: "welcome";
@@ -707,7 +734,6 @@ export type ServerMessage =
       peers: Peer[];
       box: BoxMeta;
       widgets: Widget[];
-      leases: Leases;
       rev: number;
       /** The server's clock, so timers count down the same everywhere. */
       now: number;
@@ -719,14 +745,28 @@ export type ServerMessage =
   | { t: "leave"; sid: string }
   | { t: "peer"; sid: string; name: string; hue: number; role: Role; opId?: string }
   | { t: "presence"; sid: string; presence: Presence }
-  | { t: "lease"; id: string; holder: string | null }
+  /**
+   * A typed edit to a note, now version `v` of its text, already moved past
+   * every earlier edit. `opId` is set for everyone, so the typist knows it's
+   * theirs even after reconnecting under a new sid.
+   */
+  | { t: "text"; id: string; v: number; ops: TextOp; by: string; opId: string }
   /** The bento's meta changed (renamed). `opId` is set for the owner's own request. */
   | { t: "meta"; box: BoxMeta; opId?: string }
   | { t: "pong" }
   | { t: "error"; code: ErrorCode; message: string };
 
 export type RejectCode =
-  "not_found" | "exists" | "leased" | "invalid" | "limit" | "forbidden" | "rate_limited";
+  | "not_found"
+  | "exists"
+  /** Someone's typing in the note you tried to delete. */
+  | "busy"
+  /** A typed edit too old for the server to catch up (it no longer has what came between). */
+  | "stale"
+  | "invalid"
+  | "limit"
+  | "forbidden"
+  | "rate_limited";
 export type ErrorCode = "bad_message" | "rate_limited" | "not_ready" | "version";
 
 /** WebSocket close codes in the 4000 range (application-defined). */

@@ -35,7 +35,15 @@ async function join(page: Page, url: string, name: string) {
   await page.getByRole("button", { name: "Join the bento" }).click();
 }
 
-test("a note added and typed by one person appears live for another", async ({ browser }) => {
+/** Puts the caret at `at` in the note being typed in. */
+async function caretAt(page: Page, at: number) {
+  await page.getByLabel("Note text").evaluate((el: HTMLTextAreaElement, i) => {
+    el.setSelectionRange(i, i);
+    el.dispatchEvent(new Event("select"));
+  }, at);
+}
+
+test("two people type in one note at once, and both see the same text", async ({ browser }) => {
   const [a, b] = await twoPeople(browser);
   await newBox(a, "E2E lunch");
   await join(b, a.url(), "Guest");
@@ -46,45 +54,62 @@ test("a note added and typed by one person appears live for another", async ({ b
   await expect(b.locator("[data-note]")).toHaveCount(1);
 
   await a.locator("[data-note]").first().click();
-  await a.getByLabel("Note text").pressSequentially("Onigiri for everyone", { delay: 20 });
+  await a.getByLabel("Note text").pressSequentially("Onigiri", { delay: 20 });
 
-  // B sees the words stream in, who's typing, and their caret.
-  await expect(b.locator("[data-note]").first()).toContainText("Onigiri for everyone");
-  await expect(b.locator("[data-note]").first()).toContainText("is typing");
+  // B sees the words stream in and who's typing.
+  const bNote = b.locator("[data-note]").first();
+  await expect(bNote).toContainText("Onigiri");
+  await expect(bNote).toContainText("Host is typing");
 
-  // Only one person types in a note at a time.
-  await b.locator("[data-note]").first().click();
-  await expect(b.getByRole("status").filter({ hasText: "is typing here" })).toBeVisible();
+  // B joins in at the start while A carries on at the end.
+  await bNote.click();
+  await expect(b.getByLabel("Note text")).toHaveValue("Onigiri");
+  await caretAt(b, 0);
+  await Promise.all([
+    a.getByLabel("Note text").pressSequentially(" for everyone", { delay: 30 }),
+    b.getByLabel("Note text").pressSequentially("Menu: ", { delay: 30 }),
+  ]);
+  await expect(a.getByLabel("Note text")).toHaveValue("Menu: Onigiri for everyone");
+  await expect(b.getByLabel("Note text")).toHaveValue("Menu: Onigiri for everyone");
 
-  // Finishing releases it, and the text is saved for newcomers.
+  // Each sees the other's caret in the note, named, and who's typing.
+  await expect(a.locator("[data-note]").first().getByText("Guest", { exact: true })).toBeVisible();
+  await expect(b.locator("[data-note]").first().getByText("Host", { exact: true })).toBeVisible();
+  await expect(a.locator("[data-note]").first()).toContainText("Guest is typing");
+
+  // Finishing clears it, and the text is saved for newcomers.
   await a.keyboard.press("Escape");
-  await expect(b.locator("[data-note]").first()).not.toContainText("is typing");
+  await b.keyboard.press("Escape");
+  await expect(bNote).not.toContainText("is typing");
   const c = await (await browser.newContext()).newPage();
   await join(c, a.url(), "Late");
-  await expect(c.locator("[data-note]").first()).toContainText("Onigiri for everyone");
+  await expect(c.locator("[data-note]").first()).toContainText("Menu: Onigiri for everyone");
 });
 
-test("a note whose typist went quiet can be taken over, and their unsent words are kept", async ({
+test("typing through a dropped connection lands once it's back, merged with others' edits", async ({
   browser,
 }) => {
-  // Waits out the server's idle threshold (LEASE_IDLE_MS, 30 s) for real.
-  test.setTimeout(90_000);
   const a = await (await browser.newContext()).newPage();
   const b = await (await browser.newContext()).newPage();
 
-  // A's link to the bento: let everything through, until `cut` holds back
-  // A's typing and caret, like words still in flight when the note changes hands.
+  // A's link to the bento. While `cut` is set, A's typing never arrives,
+  // like edits lost when a connection dies; `drop()` then ends the link.
   let cut = false;
+  let drop = async () => {};
   await a.routeWebSocket(/\/api\/boxes\/[a-z0-9]+\/ws$/, (ws) => {
     const server = ws.connectToServer();
     ws.onMessage((m) => {
-      if (cut && typeof m === "string" && /"t":"(op|presence)"/.test(m)) return;
+      if (cut && typeof m === "string" && m.includes('"type":"text"')) return;
       server.send(m);
     });
     server.onMessage((m) => ws.send(m));
+    drop = async () => {
+      await ws.close({ code: 4000, reason: "test" });
+      await server.close();
+    };
   });
 
-  await newBox(a, "Takeover");
+  await newBox(a, "Dropped");
   await join(b, a.url(), "Guest");
   await addNote(a);
   await expect(b.locator("[data-note]")).toHaveCount(1);
@@ -93,28 +118,21 @@ test("a note whose typist went quiet can be taken over, and their unsent words a
   await a.getByLabel("Note text").pressSequentially("Half a thought", { delay: 20 });
   await expect(b.locator("[data-note]").first()).toContainText("Half a thought");
 
-  // While A is active, the note stays theirs.
-  await b.locator("[data-note]").first().click();
-  await expect(b.getByRole("status").filter({ hasText: "is typing here" })).toBeVisible();
-
-  // A's last words never reach the bento, then A goes quiet, still in the note.
+  // A's next words go nowhere; B adds to the start meanwhile.
   cut = true;
   await a.getByLabel("Note text").pressSequentially(" and more", { delay: 20 });
-  await a.waitForTimeout(31_000);
-
-  // B takes the note over and can type.
   await b.locator("[data-note]").first().click();
-  await expect(b.getByLabel("Note text")).toBeVisible();
-  await expect(b.getByLabel("Note text")).toHaveValue("Half a thought");
+  await caretAt(b, 0);
+  await b.getByLabel("Note text").pressSequentially("Note: ", { delay: 20 });
+  await expect(b.getByLabel("Note text")).toHaveValue("Note: Half a thought");
 
-  // A's edit ends, what the bento saved stays, and the unsent words are kept to copy.
-  await expect(a.getByLabel("Note text")).toHaveCount(0);
-  await expect(a.getByText(/Guest took over this note/)).toBeVisible();
-  const kept = a.locator("[data-note]").first().getByRole("status");
-  await expect(kept).toContainText("Not saved: your last words");
-  await expect(kept).toContainText("Half a thought and more");
-  await kept.getByRole("button", { name: "Dismiss" }).click();
-  await expect(kept).toHaveCount(0);
+  // The line drops and comes back: A's words go again, once, in the right place.
+  cut = false;
+  await drop();
+  const merged = "Note: Half a thought and more";
+  await expect(a.getByLabel("Note text")).toHaveValue(merged);
+  await expect(b.getByLabel("Note text")).toHaveValue(merged);
+  await expect(a.locator("[data-note]").first().getByRole("status")).toHaveCount(0);
 });
 
 test("cursors show up for everyone else with the person's name", async ({ browser }) => {

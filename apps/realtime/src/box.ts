@@ -42,12 +42,8 @@ import {
   isQuotaError,
 } from "./limits";
 
-/**
- * Survives hibernation on each socket. `at` is when it connected; `leases`
- * are the notes this peer is typing in (note id → when they last typed or
- * moved their caret there), so a wake forgets neither.
- */
-type Attachment = { sid: string; peer: Peer | null; at?: number; leases?: Record<string, number> };
+/** Survives hibernation on each socket. `at` is when it connected. */
+type Attachment = { sid: string; peer: Peer | null; at?: number };
 
 /** A connection's rate limits. In memory only: hibernation resets them. */
 type Limits = { all: TokenBucket; op: TokenBucket; settings: TokenBucket; strikes: TokenBucket };
@@ -85,7 +81,7 @@ export class Box extends DurableObject<Env> {
       if (this.room) {
         for (const ws of ctx.getWebSockets()) {
           const a = ws.deserializeAttachment() as Attachment | null;
-          if (a?.peer) this.room.restore(a.peer, a.leases);
+          if (a?.peer) this.room.restore(a.peer);
         }
       }
     });
@@ -235,17 +231,11 @@ export class Box extends DurableObject<Env> {
       case "op": {
         const { out, persist } = room.apply(a.sid, msg.opId, msg.op);
         this.save(persist);
-        this.keepLeaseTime(ws, a.sid);
         this.dispatch(out);
         return;
       }
       case "presence":
         this.dispatch(room.presence(a.sid, msg.presence));
-        // Only a caret counts as activity in a note; plain cursor moves don't.
-        if (msg.presence.caret) this.keepLeaseTime(ws, a.sid);
-        return;
-      case "lease":
-        this.dispatch(room.lease(a.sid, msg.id, msg.take));
         return;
       case "rename": {
         const out = room.rename(a.sid, msg.name);
@@ -445,25 +435,12 @@ export class Box extends DurableObject<Env> {
     this.send(ws, { t: "rejected", opId, code: "rate_limited", message: "Slow down a little." });
   }
 
-  /** Writes a socket's attachment from the room: who it is and the notes it's typing in. */
+  /** Writes a socket's attachment from the room: who it is. */
   private attach(ws: WebSocket, sid: string) {
-    const room = this.room!;
-    ws.serializeAttachment({
-      sid,
-      peer: room.peers.get(sid) ?? null,
-      leases: room.leasesOf(sid),
-    } satisfies Attachment);
+    ws.serializeAttachment({ sid, peer: this.room!.peers.get(sid) ?? null } satisfies Attachment);
   }
 
-  /**
-   * Typing and caret moves keep a note theirs; the time goes on the holder's
-   * socket so a wake keeps it. In memory, not storage: it costs no writes.
-   */
-  private keepLeaseTime(ws: WebSocket, sid: string) {
-    if (this.room?.leases.size && Object.keys(this.room.leasesOf(sid)).length > 0) this.attach(ws, sid);
-  }
-
-  /** Re-writes every joined socket's attachment (roles or leases changed). */
+  /** Re-writes every joined socket's attachment (roles changed). */
   private attachAll() {
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment() as Attachment | null;
@@ -473,9 +450,6 @@ export class Box extends DurableObject<Env> {
 
   private dispatch(out: Outgoing[], skip?: WebSocket) {
     if (out.length === 0) return;
-    // Every lease change is announced, so this is the one place that keeps
-    // the holders' sockets in step: a wake then restores who's typing where.
-    if (out.some((o) => o.msg.t === "lease")) this.attachAll();
     if (out.some((o) => o.msg.t === "meta")) {
       // Renamed, settings or the creator's credit changed: save it.
       this.ctx.storage.sql.exec(
@@ -608,9 +582,9 @@ export class Box extends DurableObject<Env> {
    * follows. The Durable Object's output gate holds that broadcast until the
    * write is durable, so nobody is told about a change a restart could lose.
    *
-   * Note text (`soon`) streams in every 80ms while someone types and is
-   * never acknowledged, so it waits for the next flush: a note retyped many
-   * times in that window is written once. A restart can lose at most the
+   * Note text (`soon`) streams in every 50ms per typist. Its confirmation
+   * only orders the edit, so it waits for the next flush: a note retyped
+   * many times in that window is written once. A restart can lose at most the
    * last `FLUSH_MS` of typing.
    */
   private save(persist: Persist) {

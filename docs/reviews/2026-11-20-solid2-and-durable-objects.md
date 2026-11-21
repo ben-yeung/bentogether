@@ -71,6 +71,12 @@ the object is evicted, that state is lost and the client isn't told.
 
 ## Editing the same widget (question on finding 1)
 
+> **Superseded (2026-11-21):** leases and idle takeover were replaced by
+> simultaneous typing (operational transform) on branch `claude/note-ot`.
+> Anyone can type in a note at once; see the README's key decisions and
+> `packages/shared/src/text.ts`. The section below records the lease design
+> as it was.
+
 **How it works today**
 
 - **Notes have one writer at a time (a lease).** Clicking into a note takes

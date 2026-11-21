@@ -128,6 +128,9 @@
 }
 
 .input {
+  /* Above the caret mirror, which is positioned. */
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
@@ -135,6 +138,16 @@
   background: transparent;
   resize: none;
   outline: none;
+}
+
+/* Other people's carets while you type: the same text, laid out the same
+   way behind the textarea, with only their selections and carets visible. */
+.mirror {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  color: transparent;
+  pointer-events: none;
 }
 
 .placeholder {
@@ -242,8 +255,8 @@
 
 /* ------------------------------------------------------- unsaved words */
 
-/* What you typed after losing the note (someone took it over, or the
-   connection dropped): kept so nothing you wrote just vanishes. */
+/* Typing the bento refused (the note filled up, say): kept so nothing you
+   wrote just vanishes. */
 .unsaved {
   /* Over the bottom of the text, which fills the body. */
   position: absolute;
