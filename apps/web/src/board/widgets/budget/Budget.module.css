@@ -10,17 +10,7 @@
 
 /* --------------------------------------------------------------- header */
 
-/* The title, clear of delete in the corner. */
-.head {
-  display: grid;
-  /* A little more air between the title and what's under it. */
-  margin-bottom: calc(var(--u) * 5);
-
-  padding-right: 1.5em;
-}
-
 /* Inputs read as plain text until you're in them. */
-.title,
 .amountInput,
 .adjustInput {
   min-width: 0;
@@ -34,32 +24,9 @@
   outline: none;
 }
 
-.title {
-  font-size: 0.9em;
-  font-weight: 600;
-  color: color-mix(in srgb, var(--lacquer) 75%, transparent);
-  text-overflow: ellipsis;
-}
-
-/* Only as wide as the title itself, so the rest of the line stays a place
-   to grab the widget. `size` (set in the markup) covers browsers without
-   field-sizing. */
-.title {
-  field-sizing: content;
-  justify-self: start;
-  width: auto;
-  min-width: 2ch;
-  max-width: 100%;
-}
-
-.title::placeholder,
 .amountInput::placeholder,
 .adjustInput::placeholder {
   color: color-mix(in srgb, var(--lacquer) 40%, transparent);
-}
-
-.title:read-only {
-  cursor: inherit;
 }
 
 .historyBtn,

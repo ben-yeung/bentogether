@@ -1,7 +1,7 @@
 /* A note inside the shared widget frame (WidgetFrame.module.css). */
 .note {
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: auto 1fr auto;
   /* A gap between the text and the author line so they don't crowd. */
   row-gap: calc(var(--u) * 5);
   /* Text size per note (--fs, set from its size), shared by everyone. */
@@ -79,6 +79,15 @@
 }
 
 /* ----------------------------------------------------------------- text */
+
+/* The title line, the same size as every other widget's whatever the
+   note's text size. */
+.head {
+  display: grid;
+  margin-bottom: calc(var(--u) * -5);
+  font-size: calc(var(--u) * 16);
+  line-height: 1.35;
+}
 
 .body {
   min-height: 0;
@@ -179,12 +188,18 @@
   padding: 0 0.35em;
   border-radius: 4px 4px 4px 0;
   background: var(--c);
-  color: var(--c-ink, var(--pill-ink));
+  /* Same ink as the cursor name pills (see tokens.css). */
+  color: var(--tag-ink);
+  text-shadow: 0 0 2px var(--tag-halo);
   font-family: var(--font-mono);
   font-size: 0.55em;
   line-height: 1.5;
   white-space: nowrap;
   pointer-events: none;
+}
+
+.flagSep {
+  opacity: 0.6;
 }
 
 @keyframes blink {

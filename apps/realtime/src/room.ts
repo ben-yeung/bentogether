@@ -355,14 +355,13 @@ export class Room {
         if (op.currency !== undefined && w.kind !== "budget")
           return reject("invalid", "Only a budget has a currency.");
         if (w.kind === "note") {
-          if (op.title !== undefined) return reject("invalid", "Notes don't have a title.");
           if (op.size !== undefined) w.size = op.size;
         } else {
           if (op.size !== undefined) return reject("invalid", "That only applies to a note.");
-          // Short and set in one go, so the last one saved wins.
-          if (op.title !== undefined) w.title = op.title.trim();
           if (op.currency !== undefined && w.kind === "budget") w.currency = op.currency;
         }
+        // Short and set in one go, so the last one saved wins.
+        if (op.title !== undefined) w.title = op.title.trim();
         if (op.color !== undefined) w.color = op.color;
         w.updatedAt = t;
         upsert = [w];
