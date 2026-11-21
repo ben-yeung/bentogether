@@ -4,6 +4,7 @@ import {
   applyTodoChange,
   applyWidgetChange,
   blankFields,
+  mayDelete,
   viewerMay,
   voterKey,
   clampFor,
@@ -324,7 +325,12 @@ export class Room {
         if (this.widgets.has(op.id)) return reject("exists", "That widget already exists.");
         if (this.widgets.size >= MAX_WIDGETS) return reject("limit", "This bento is full.");
         const rect = clampFor(op.kind, op.rect);
-        const stamp = { createdBy: author?.name ?? "someone", createdAt: t, updatedAt: t };
+        const stamp = {
+          createdBy: author?.name ?? "someone",
+          creatorKey: voterKey(author?.clientId ?? sid, this.meta.id),
+          createdAt: t,
+          updatedAt: t,
+        };
         const base = { id: op.id, ...rect, color: op.color, ...stamp };
         const widget: Widget =
           op.kind === "note"
@@ -407,7 +413,10 @@ export class Room {
       case "text":
         return this.text(sid, opId, op, t, reject, persist);
       case "delete": {
-        if (!this.widgets.has(op.id)) return reject("not_found", "That widget is gone.");
+        const w = this.widgets.get(op.id);
+        if (!w) return reject("not_found", "That widget is gone.");
+        if (!mayDelete(w, author?.role ?? "viewer", voterKey(author?.clientId ?? sid, this.meta.id)))
+          return reject("forbidden", "Only the bento's creator or whoever added this widget can delete it.");
         if (this.typists(op.id).some((p) => p.sid !== sid)) return reject("busy", "Someone is typing here.");
         this.widgets.delete(op.id);
         this.history.delete(op.id);

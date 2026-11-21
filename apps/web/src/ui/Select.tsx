@@ -128,7 +128,7 @@ export function Select<T extends string>(props: {
     };
     // The list is placed once; if the page moves under it, close it.
     const away = (e: Event) => {
-      if (open() && !list.contains(e.target as Node)) hide(false);
+      if (open() && !(e.target instanceof Node && list.contains(e.target))) hide(false);
     };
     addEventListener("pointerdown", outside, true);
     addEventListener("scroll", away, true);

@@ -246,14 +246,44 @@
   gap: 0.5em;
 }
 
+/* Date and time pickers (ui/DatePicker, ui/Select): a soft pill with a
+   chevron; the open list or calendar is the shared raised card. */
 .field {
-  padding: 0.2em 0.4em;
-  border: 1px solid color-mix(in srgb, var(--lacquer) 20%, transparent);
-  border-radius: 0.4em;
-  background: color-mix(in srgb, #fff 55%, transparent);
+  appearance: none;
+  height: 1.9em;
+  padding: 0 1.7em 0 0.6em;
+  border: 1px solid color-mix(in srgb, var(--lacquer) 16%, transparent);
+  border-radius: 0.5em;
+  background: color-mix(in srgb, #fff 55%, transparent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%238f8378' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 0.5em center / 0.7em;
   color: var(--lacquer);
   font: inherit;
   font-size: 0.85em;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--ease-soft),
+    border-color 120ms var(--ease-soft);
+}
+
+.field:hover,
+.field[aria-expanded="true"] {
+  background-color: color-mix(in srgb, #fff 75%, transparent);
+  border-color: color-mix(in srgb, var(--lacquer) 30%, transparent);
+}
+
+.field:focus-visible {
+  outline: 2px solid var(--shu);
+  outline-offset: 1px;
+}
+
+/* A day's worth of times: keep the list short and the digits lined up. */
+.timeList {
+  max-height: min(14rem, 50dvh);
+  font-variant-numeric: tabular-nums;
 }
 
 .check {
