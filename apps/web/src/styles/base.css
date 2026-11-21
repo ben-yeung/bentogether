@@ -154,7 +154,7 @@ kbd {
  * Inputs and dropdowns: quiet by default. No box, no glow; a faint
  * underline that firms up while you edit. One recipe for every field.
  *   .field         text inputs (title, names, passwords, the share link)
- *   .field-select  dropdowns (permissions, access)
+ *   .field-select  dropdowns (permissions, access), via <Select>
  */
 .field,
 .field-select {
@@ -175,7 +175,8 @@ kbd {
 }
 
 .field:hover,
-.field-select:hover:not(:disabled) {
+.field-select:hover:not(:disabled),
+.field-select[aria-expanded="true"] {
   border-bottom-color: var(--lacquer-faint);
 }
 
@@ -200,9 +201,13 @@ kbd {
   cursor: text;
 }
 
-/* Dropdowns read as text with a chevron; the underline shows on hover. */
+/* Dropdowns read as text with a chevron; the underline shows on hover.
+   They're <Select> buttons (ui/Select.tsx), so the open list is ours too. */
 .field-select {
   appearance: none;
+  text-align: left;
+  white-space: nowrap;
+  line-height: inherit;
   padding-right: 1.3rem;
   border-bottom-color: transparent;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%238f8378' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")

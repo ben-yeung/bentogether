@@ -341,7 +341,12 @@
   font-size: 0.8em;
 }
 
-.currency:hover {
+.currencyList {
+  font-family: var(--font-mono);
+}
+
+.currency:hover,
+.currency[aria-expanded="true"] {
   background: color-mix(in srgb, var(--lacquer) 8%, transparent);
   color: var(--lacquer);
 }

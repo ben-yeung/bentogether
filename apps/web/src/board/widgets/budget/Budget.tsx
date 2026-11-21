@@ -4,13 +4,15 @@ import {
   SYSTEM_AUTHOR,
   WIDGET_TITLE_MAX,
   type BudgetChange,
-  type Currency,
 } from "@bentogether/shared";
 import { personVars } from "../../../lib/identity";
 import { editableAmount, formatMoney, parseAmount } from "../../../lib/money";
 import { ColorTools } from "../../frame/ColorTools";
 import { WidgetFrame, frameParts, type WidgetProps } from "../../frame/WidgetFrame";
+import { Select } from "../../../ui/Select";
 import styles from "./Budget.module.css";
+
+const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c, label: c }));
 
 /** Budgets this many columns wide or narrower fold the swatches into one dot. */
 const COMPACT_TOOLS_MAX_W = 3;
@@ -330,19 +332,16 @@ export function Budget(props: WidgetProps) {
             </svg>
           </button>
           <Show when={!props.readOnly}>
-            <select
+            <Select
               class={styles.currency}
-              aria-label="Currency"
+              listClass={styles.currencyList}
+              label="Currency"
               title="Currency"
+              align="end"
               value={currency()}
-              onChange={(e) =>
-                s()
-                  .setCurrency(props.id, e.currentTarget.value as Currency)
-                  .catch(fail)
-              }
-            >
-              <For each={CURRENCIES}>{(c) => <option value={c}>{c}</option>}</For>
-            </select>
+              options={CURRENCY_OPTIONS}
+              onChange={(c) => s().setCurrency(props.id, c).catch(fail)}
+            />
             <ColorTools
               color={s().color(props.id)}
               compact={props.rect.w <= COMPACT_TOOLS_MAX_W}

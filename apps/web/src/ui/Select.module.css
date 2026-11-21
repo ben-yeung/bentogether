@@ -1,0 +1,80 @@
+.wrap {
+  display: inline-flex;
+  min-width: 0;
+}
+
+/* The open list: a small raised card, like the color picker's popover.
+   It lives in the top layer, so it resets the UA [popover] box. */
+.list {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  max-height: min(18rem, 60dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  list-style: none;
+  padding: 0.3rem;
+  border: 1px solid var(--bamboo);
+  border-radius: 0.75rem;
+  background: var(--rice-raised);
+  color: var(--lacquer);
+  font-family: var(--font-ui);
+  font-size: var(--step--1);
+  font-weight: 450;
+  box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--lacquer) 30%, transparent);
+  /* Over a board with a custom cursor, menus use normal cursors. */
+  cursor: auto;
+  outline: none;
+}
+
+.list:popover-open {
+  animation: pop 160ms var(--ease-snap);
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.5rem;
+  white-space: nowrap;
+  color: var(--lacquer-soft);
+  cursor: pointer;
+  user-select: none;
+}
+
+.option[data-active] {
+  background: var(--rice-sunk);
+  color: var(--lacquer);
+}
+
+.option[aria-selected="true"] {
+  color: var(--lacquer);
+  font-weight: 550;
+}
+
+.check {
+  flex: none;
+  width: 0.8rem;
+  height: 0.8rem;
+  fill: none;
+  stroke: var(--shu);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .list:popover-open {
+    animation: none;
+  }
+}
