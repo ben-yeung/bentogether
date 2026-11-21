@@ -164,9 +164,18 @@ function BoxView(props: {
                 .split("\n")
                 .flatMap((line, i) => (i ? [" ", <span>{line}</span>] : [<span>{line}</span>]))}
             </p>
-            <button type="button" class="btn" onClick={() => location.reload()}>
-              Try again
-            </button>
+            <Show
+              when={props.session.server.deleted}
+              fallback={
+                <button type="button" class="btn" onClick={() => location.reload()}>
+                  Try again
+                </button>
+              }
+            >
+              <button type="button" class="btn" onClick={() => navigate("/")}>
+                Back home
+              </button>
+            </Show>
           </div>
         )}
       </Show>

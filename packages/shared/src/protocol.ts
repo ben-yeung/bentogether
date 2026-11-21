@@ -677,6 +677,11 @@ export const ClientMessageSchema = v.variant("t", [
   }),
   /** Remove every widget from the bento, for everyone. Owner only. */
   v.object({ t: v.literal("clear"), opId: v.pipe(v.string(), v.maxLength(40)) }),
+  /**
+   * Delete the bento for good, storage and all. Owner only. There's no
+   * `applied` reply: everyone's socket is closed with `CLOSE.deleted`.
+   */
+  v.object({ t: v.literal("delete"), opId: v.pipe(v.string(), v.maxLength(40)) }),
   /** Give someone at the table a role. Owner only. */
   v.object({
     t: v.literal("role"),
@@ -781,6 +786,8 @@ export const CLOSE = {
   nameTaken: 4409,
   /** Cloudflare's free daily quota is used up; back after 00:00 UTC. */
   overCapacity: 4503,
+  /** The creator deleted the bento. */
+  deleted: 4410,
 } as const;
 
 export function parseClientMessage(raw: unknown) {

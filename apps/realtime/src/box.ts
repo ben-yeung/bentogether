@@ -48,7 +48,7 @@ type Attachment = { sid: string; peer: Peer | null; at?: number };
 /** A connection's rate limits. In memory only: hibernation resets them. */
 type Limits = { all: TokenBucket; op: TokenBucket; settings: TokenBucket; strikes: TokenBucket };
 
-const SETTINGS = new Set(["rename", "retitle", "access", "options", "role", "clear"]);
+const SETTINGS = new Set(["rename", "retitle", "access", "options", "role", "clear", "delete"]);
 
 /**
  * One Durable Object per box. It owns the box's state (SQLite), holds every
@@ -285,6 +285,12 @@ export class Box extends DurableObject<Env> {
         this.dispatch(out);
         return;
       }
+      case "delete": {
+        const denied = room.mayDelete(a.sid, msg.opId);
+        if (denied) return this.dispatch(denied);
+        await this.destroy();
+        return;
+      }
       case "role": {
         const out = room.setRole(a.sid, msg.opId, msg.sid, msg.role);
         this.saveRoles();
@@ -366,6 +372,27 @@ export class Box extends DurableObject<Env> {
   }
 
   // ------------------------------------------------------- internals
+
+  /**
+   * Deletes the bento: wipes its storage, then closes every socket with
+   * `CLOSE.deleted`. The room goes first, so nothing arriving meanwhile is
+   * applied or saved; once storage is empty the id reads as never created.
+   */
+  private async destroy() {
+    this.room = null;
+    this.dirty.clear();
+    this.limits.clear();
+    this.flushScheduled = false;
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.close(CLOSE.deleted, "deleted");
+      } catch {
+        // already closing
+      }
+    }
+  }
 
   private drop(ws: WebSocket) {
     const a = ws.deserializeAttachment() as Attachment | null;

@@ -108,15 +108,20 @@
   font-weight: 550;
 }
 
-/* Clearing sits apart at the bottom, in the danger color. */
+/* Clearing and deleting sit apart at the bottom, in the danger color. */
 .danger {
-  /* The button with its hint beside it; the hint drops below on narrow screens. */
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--bamboo);
+}
+
+/* A button with its hint beside it; the hint drops below on narrow screens. */
+.dangerRow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem 0.75rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--bamboo);
 }
 
 .dangerBtn {

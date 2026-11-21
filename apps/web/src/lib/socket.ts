@@ -94,6 +94,7 @@ export class Socket {
         CLOSE.password,
         CLOSE.nameTaken,
         CLOSE.overCapacity,
+        CLOSE.deleted,
       ];
       if (fatal.includes(e.code)) {
         this.stopped = true;
