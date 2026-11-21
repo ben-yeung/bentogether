@@ -135,6 +135,25 @@ test("typing through a dropped connection lands once it's back, merged with othe
   await expect(a.locator("[data-note]").first().getByRole("status")).toHaveCount(0);
 });
 
+test("a tab running older code is asked to reload, not left hanging", async ({ browser }) => {
+  const [a, b] = await twoPeople(browser);
+  await newBox(a, "Versions");
+  // B's tab says hello as last version's code would.
+  await b.routeWebSocket(/\/api\/boxes\/[a-z0-9]+\/ws$/, (ws) => {
+    const server = ws.connectToServer();
+    ws.onMessage((m) => {
+      const msg = typeof m === "string" ? (JSON.parse(m) as { t?: string; v?: number }) : null;
+      server.send(msg?.t === "hello" ? JSON.stringify({ ...msg, v: 1 }) : m);
+    });
+    server.onMessage((m) => ws.send(m));
+  });
+  await join(b, a.url(), "Guest");
+  await expect(b.getByRole("heading", { name: "There's a new version." })).toBeVisible();
+  await expect(b.getByRole("button", { name: "Reload" })).toBeVisible();
+  // The real bento never counted them.
+  await expect(a.getByText("Just you viewing the bento")).toBeVisible();
+});
+
 test("cursors show up for everyone else with the person's name", async ({ browser }) => {
   const [a, b] = await twoPeople(browser);
   await newBox(a, "Cursor check");

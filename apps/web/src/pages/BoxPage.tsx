@@ -1,10 +1,10 @@
-import { createEffect, createMemo, createSignal, Errored, Loading, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, Errored, Loading, Match, Show, Switch } from "solid-js";
 import { Board } from "../board/Board";
 import { Toolbar } from "../board/Toolbar";
 import { AddWidget } from "../board/AddWidget";
 import { NameTaken, openSession, PasswordRequired, type BoxSession } from "../board/session";
 import { HomeLink, Lockup, Mark } from "../brand/Logo";
-import { BoxNotFound, getBox, OverCapacity, Unreachable } from "../lib/api";
+import { BoxNotFound, getBox, Outdated, OverCapacity, Unreachable } from "../lib/api";
 import {
   loadDevice,
   nameFor,
@@ -299,14 +299,17 @@ function BoxError(props: { error: unknown; onRetry: () => void }) {
   const missing = () => props.error instanceof BoxNotFound;
   // Capacity and reachability pass on their own; worth another try later.
   const transient = () => props.error instanceof OverCapacity || props.error instanceof Unreachable;
+  const outdated = () => props.error instanceof Outdated;
   const heading = () =>
     missing()
       ? "Nothing in this bento."
-      : props.error instanceof OverCapacity
-        ? "We're full for today."
-        : props.error instanceof Unreachable
-          ? "Can't reach the bento."
-          : "Something went wrong.";
+      : outdated()
+        ? "There's a new version."
+        : props.error instanceof OverCapacity
+          ? "We're full for today."
+          : props.error instanceof Unreachable
+            ? "Can't reach the bento."
+            : "Something went wrong.";
   return (
     <div class={styles.center}>
       <HomeLink>
@@ -318,18 +321,24 @@ function BoxError(props: { error: unknown; onRetry: () => void }) {
           ? "This bento doesn't exist, or it was cleared away."
           : String((props.error as Error)?.message ?? props.error)}
       </p>
-      <Show
-        when={transient()}
+      <Switch
         fallback={
           <button type="button" class="btn btn-primary" onClick={() => navigate("/")}>
             Start a new bento
           </button>
         }
       >
-        <button type="button" class="btn btn-primary" onClick={() => props.onRetry()}>
-          Try again
-        </button>
-      </Show>
+        <Match when={outdated()}>
+          <button type="button" class="btn btn-primary" onClick={() => location.reload()}>
+            Reload
+          </button>
+        </Match>
+        <Match when={transient()}>
+          <button type="button" class="btn btn-primary" onClick={() => props.onRetry()}>
+            Try again
+          </button>
+        </Match>
+      </Switch>
     </div>
   );
 }

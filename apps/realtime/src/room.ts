@@ -74,7 +74,6 @@ export class Room {
   private history = new Map<string, TextEntry[]>();
   /** Roles the owner gave, by device (clientId). Persisted by the host. */
   readonly roles = new Map<string, AssignableRole>();
-  rev = 0;
 
   constructor(
     public meta: BoxMeta,
@@ -128,7 +127,6 @@ export class Room {
           peers: others.map((p) => this.public(p)),
           box: this.meta,
           widgets: [...this.widgets.values()],
-          rev: this.rev,
           now: this.now(),
         },
       },
@@ -426,13 +424,10 @@ export class Room {
       }
     }
 
-    this.rev++;
     for (const w of upsert) persist.now.add(w.id);
     for (const id of remove) persist.removed.add(id);
 
-    const out: Outgoing[] = [
-      { target: { to: "all" }, msg: { t: "applied", rev: this.rev, by: sid, opId, upsert, remove } },
-    ];
+    const out: Outgoing[] = [{ target: { to: "all" }, msg: { t: "applied", by: sid, opId, upsert, remove } }];
     return { out, persist };
   }
 
@@ -510,11 +505,8 @@ export class Room {
     this.widgets.clear();
     this.history.clear();
     for (const id of remove) persist.removed.add(id);
-    this.rev++;
     return {
-      out: [
-        { target: { to: "all" }, msg: { t: "applied", rev: this.rev, by: sid, opId, upsert: [], remove } },
-      ],
+      out: [{ target: { to: "all" }, msg: { t: "applied", by: sid, opId, upsert: [], remove } }],
       persist,
     };
   }
