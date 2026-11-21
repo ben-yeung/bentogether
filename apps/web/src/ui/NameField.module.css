@@ -26,6 +26,11 @@
   flex: 1;
 }
 
+.error {
+  font-size: var(--step--1);
+  color: var(--danger);
+}
+
 .labelNote {
   text-transform: none;
   letter-spacing: 0;

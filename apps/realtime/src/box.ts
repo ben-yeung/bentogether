@@ -232,6 +232,10 @@ export class Box extends DurableObject<Env> {
             return;
           }
         }
+        if (room.nameTaken(msg.name, msg.clientId)) {
+          ws.close(CLOSE.nameTaken, "taken");
+          return;
+        }
         const out = room.join(a.sid, msg, owner);
         ws.serializeAttachment({ sid: a.sid, peer: room.peers.get(a.sid)! } satisfies Attachment);
         this.dispatch(out);

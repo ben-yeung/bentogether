@@ -371,3 +371,24 @@ test("a budget is shared live: set, subtract and add together, history and curre
   await expect(budgetB.getByRole("button", { name: /Set the amount/ })).toContainText("460");
   await expect(budgetB.getByRole("button", { name: /Set the amount/ })).toContainText("€");
 });
+
+test("names are unique within a bento", async ({ browser }) => {
+  const [a, b] = await twoPeople(browser);
+  await newBox(a, "Same name");
+
+  // Joining as "host" when Host is already here asks for another name.
+  await join(b, a.url(), "host");
+  await expect(b.getByText("Someone here is already called host.")).toBeVisible();
+  await expect(b.getByLabel("Your name")).toHaveAttribute("aria-invalid", "true");
+  await b.getByLabel("Your name").fill("Guest");
+  await b.getByRole("button", { name: "Join the bento" }).click();
+  await expect(a.getByText("2 people viewing the bento")).toBeVisible();
+
+  // Renaming to a taken name is refused and keeps the old one.
+  await b.getByRole("button", { name: "Settings" }).click();
+  const name = b.locator("#settings-name");
+  await name.fill("HOST");
+  await name.press("Enter");
+  await expect(b.getByText("Someone here is already called HOST.")).toBeVisible();
+  await expect(name).toHaveValue("Guest");
+});

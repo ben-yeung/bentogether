@@ -7,6 +7,7 @@ import {
   identityFromSeed,
   personTone,
   randomId,
+  sameName,
   separateHue,
 } from "./identity";
 
@@ -95,5 +96,13 @@ describe("parseClientMessage", () => {
     const ok = parseClientMessage({ t: "rename", name: "  Mochi  " });
     expect(ok.success && ok.output.t === "rename" && ok.output.name).toBe("Mochi");
     expect(parseClientMessage({ t: "rename", name: "x".repeat(40) }).success).toBe(false);
+  });
+});
+
+describe("sameName", () => {
+  it("ignores case, spacing at the ends and full-width look-alikes", () => {
+    expect(sameName("Mochi", " mochi ")).toBe(true);
+    expect(sameName("Mochi", "Ｍｏｃｈｉ")).toBe(true);
+    expect(sameName("Mochi", "Mochi-san")).toBe(false);
   });
 });

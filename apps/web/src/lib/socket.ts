@@ -86,6 +86,7 @@ export class Socket {
         CLOSE.tooMany,
         CLOSE.forbidden,
         CLOSE.password,
+        CLOSE.nameTaken,
         CLOSE.overCapacity,
       ];
       if (fatal.includes(e.code)) {

@@ -107,6 +107,15 @@ export function separateHue(hue: number, taken: readonly number[]): number {
   return best;
 }
 
+/**
+ * Two names are the same person's if they match ignoring case, spacing at
+ * the ends and Unicode look-alikes ("Mochi", " mochi", "Ｍｏｃｈｉ").
+ */
+export function sameName(a: string, b: string): boolean {
+  const key = (n: string) => n.normalize("NFKC").trim().toLocaleLowerCase();
+  return key(a) === key(b);
+}
+
 export function normalizeHue(hue: number): number {
   return Math.round(((hue % 360) + 360) % 360);
 }
