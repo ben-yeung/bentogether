@@ -110,7 +110,16 @@
 
 .rowTools > * {
   pointer-events: auto;
-  background: color-mix(in srgb, #fff 70%, transparent);
+}
+
+/* While the row is hovered (or a tool has focus), the voters and count
+   step aside so the tools have the right end to themselves. */
+.row[data-tools]:is(:hover, :has(.rowTools :focus-visible)) .vote {
+  padding-right: 3.4em;
+}
+
+.row[data-tools]:is(:hover, :has(.rowTools :focus-visible)) :is(.voters, .n) {
+  display: none;
 }
 
 .count {

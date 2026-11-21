@@ -169,7 +169,13 @@ function Option(props: {
   }
 
   return (
-    <li class={styles.row} data-row data-picked={props.picked} style={{ "--share": props.share }}>
+    <li
+      class={styles.row}
+      data-row
+      data-picked={props.picked}
+      data-tools={!props.readOnly}
+      style={{ "--share": props.share }}
+    >
       <Show
         when={draft() !== null}
         fallback={

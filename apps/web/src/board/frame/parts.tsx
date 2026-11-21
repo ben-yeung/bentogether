@@ -229,11 +229,12 @@ export function TrashIcon() {
 }
 
 /** A remove button that shows on hover of its row. */
-export function RemoveButton(props: { label: string; onClick: () => void }) {
+/** `class`, when given, replaces the default show-on-row-hover behavior. */
+export function RemoveButton(props: { label: string; onClick: () => void; class?: string }) {
   return (
     <button
       type="button"
-      class={[styles.icon, styles.onHover]}
+      class={[styles.icon, props.class ?? styles.onHover]}
       aria-label={props.label}
       onClick={() => props.onClick()}
     >

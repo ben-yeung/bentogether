@@ -10,27 +10,58 @@
   gap: 0.3em;
 }
 
+/* A person spans the full width. Hovering the right edge (or focusing
+   delete) slides the row left to make room for the delete button. */
 .person {
+  --slot: 1.8em;
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.2em;
+}
+
+.reveal,
+.remove {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  translate: 0 -50%;
+}
+
+.reveal {
+  width: var(--slot);
+  height: 100%;
+}
+
+.remove {
+  right: 0.2em;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.person:has(.reveal:hover, .remove:hover, .remove:focus-visible) .personBtn {
+  margin-right: var(--slot);
+}
+
+.person:has(.reveal:hover, .remove:hover, .remove:focus-visible) .remove {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .personBtn {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: center;
   gap: 0.5em;
   min-width: 0;
-  padding: 0.3em 0.45em;
+  padding: 0.3em 0.6em 0.3em 0.3em;
   border: 0;
-  border-radius: 0.5em;
+  border-radius: 999px;
   background: color-mix(in srgb, #fff 30%, transparent);
   color: inherit;
   font: inherit;
   text-align: left;
-  transition: background-color 120ms var(--ease-soft);
+  transition:
+    background-color 120ms var(--ease-soft),
+    margin-right 160ms var(--ease-soft);
 }
 
 .personBtn:hover {
@@ -38,8 +69,10 @@
 }
 
 .avatar {
+  position: relative;
   display: grid;
   place-items: center;
+  flex: none;
   width: 1.6em;
   height: 1.6em;
   border-radius: 50%;
@@ -50,7 +83,21 @@
   font-size: 0.85em;
 }
 
+/* Something new since you last looked: a shu dot on the avatar. */
+.avatar[data-unread]::after {
+  content: "";
+  position: absolute;
+  top: -0.1em;
+  right: -0.1em;
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: var(--shu);
+  box-shadow: 0 0 0 0.14em var(--bg);
+}
+
 .name {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -58,24 +105,17 @@
   font-weight: 600;
 }
 
+/* How many asks are still open, as a pill. */
 .open {
+  flex: none;
+  padding: 0.1em 0.6em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--lacquer) 9%, transparent);
+  color: color-mix(in srgb, var(--lacquer) 70%, transparent);
   font-family: var(--font-mono);
   font-size: 0.7em;
-  color: color-mix(in srgb, var(--lacquer) 55%, transparent);
-}
-
-/* New since you last looked: a counter in the box's accent. */
-.badge {
-  min-width: 1.4em;
-  padding: 0 0.35em;
-  border-radius: 1em;
-  background: var(--shu);
-  color: var(--shu-ink);
-  font-family: var(--font-mono);
-  font-size: 0.7em;
-  font-weight: 700;
-  line-height: 1.5;
-  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .newCount {
