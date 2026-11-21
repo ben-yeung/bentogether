@@ -6,3 +6,4 @@ export * from "./todo";
 export * from "./budget";
 export * from "./changes";
 export * from "./freetimes";
+export * from "./text";

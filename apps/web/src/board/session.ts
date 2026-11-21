@@ -9,7 +9,12 @@ import {
   PROTOCOL_VERSION,
   WIDGET_SIZE,
   applyBudgetChange,
+  applyText,
   applyTodoChange,
+  composeText,
+  isNoopText,
+  transformIndex,
+  transformText,
   applyWidgetChange,
   blankFields,
   voterKey,
@@ -30,6 +35,7 @@ import {
   type Presence,
   type Rect,
   type ServerMessage,
+  type TextOp,
   type TextSize,
   type TodoChange,
   type TodoItem,
@@ -48,7 +54,35 @@ const OP_TIMEOUT_MS = 8000;
 /** Give up on the first connection after this long and say why. */
 const CONNECT_TIMEOUT_MS = 15_000;
 const PRESENCE_MS = 50; // 20 Hz
-const TEXT_MS = 80;
+/** Typed edits go out at most this often; keystrokes in between are sent together. */
+const TEXT_MS = 50;
+
+type TextMessage = Extract<ServerMessage, { t: "text" }>;
+
+/**
+ * Your typing in one note, on its way. One edit is in flight at a time;
+ * what you type meanwhile waits in `buffer` and goes when the server
+ * answers. Both are moved past everyone else's edits as they arrive (see
+ * shared/text.ts), so what you see is always the saved text plus your own
+ * unconfirmed typing.
+ */
+type TextDoc = {
+  /** The note's text as the server last confirmed it, and its version. */
+  known: { text: string; tv: number };
+  /** What you see: `known` with your unconfirmed typing applied. */
+  local: string;
+  inflight: { opId: string; ops: TextOp } | null;
+  buffer: TextOp | null;
+  /**
+   * After a reconnect: edits that arrived before ones we're still being
+   * caught up on, by version. Applied as soon as the gap fills.
+   */
+  early: Map<number, TextMessage>;
+  /** The note's text in the last welcome, in case the server can't catch us up. */
+  fresh: { text: string; tv: number } | null;
+  sentAt: number;
+  timer: number;
+};
 
 /** The bento is password protected and the password was missing or wrong. */
 export class PasswordRequired extends Error {
@@ -182,7 +216,17 @@ function createSession(boxId: string, identity: () => Hello) {
     });
   }
   const [peers, setPeers] = createStore<Record<string, Peer>>({});
-  const [leases, setLeases] = createStore<Record<string, string>>({});
+  /** Each note's text as you see it, while some of your typing is unconfirmed. */
+  const [drafts, setDrafts] = createStore<Record<string, string>>({});
+  /** Typing the bento refused or couldn't take, by note, kept for you to copy. */
+  const [lost, setLost] = createStore<Record<string, string>>({});
+  const docs = new Map<string, TextDoc>();
+  /**
+   * Every other note's confirmed text and version. Typing state lives in
+   * plain maps, mirrored into the stores for drawing: store reads lag writes
+   * until the batch flushes, and edits chain on each other within one task.
+   */
+  const texts = new Map<string, { text: string; tv: number }>();
 
   /** Server clock minus ours, from the welcome; timers count with it. */
   let clockOffset = 0;
@@ -207,7 +251,6 @@ function createSession(boxId: string, identity: () => Hello) {
   // ---------------------------------------------------------- ops in flight
 
   const inflight = new Map<string, { resolve: () => void; reject: (e: Error) => void; timer: number }>();
-  const leaseWaiters = new Map<string, (granted: boolean) => void>();
 
   function sendOp(op: Op, opId = randomId(10)): Promise<void> {
     return new Promise<void>((resolve, reject) => {
@@ -234,9 +277,29 @@ function createSession(boxId: string, identity: () => Hello) {
 
   function failAllInflight(reason: string) {
     for (const id of [...inflight.keys()]) settleOp(id, new OpRejected(reason));
-    for (const [id, waiter] of leaseWaiters) {
-      leaseWaiters.delete(id);
-      waiter(false);
+  }
+
+  /**
+   * Puts a widget from the server into the store. A note you have typing in
+   * flight for keeps the text you know: your edits name its version, and
+   * the server catches you up on the rest edit by edit.
+   */
+  function merge(d: ServerState, w: Widget) {
+    const cur = d.widgets[w.id];
+    if (!cur) {
+      d.widgets[w.id] = w;
+      return;
+    }
+    if (w.kind === "note" && docs.has(w.id)) {
+      const { text: _text, tv: _tv, ...rest } = w;
+      Object.assign(cur, rest);
+    } else Object.assign(cur, w);
+  }
+
+  function mergeAll(d: ServerState, widgets: Widget[]) {
+    for (const w of widgets) {
+      if (w.kind === "note" && !docs.has(w.id)) texts.set(w.id, { text: w.text, tv: w.tv ?? 0 });
+      merge(d, w);
     }
   }
 
@@ -248,19 +311,22 @@ function createSession(boxId: string, identity: () => Hello) {
         clockOffset = msg.now - Date.now();
         // A new connection starts blank on the server, so the next presence goes out even if unchanged.
         sentPresence = JSON.stringify(EMPTY_PRESENCE);
+        // Only notes with typing still in flight keep the text they knew.
+        for (const [id, doc] of [...docs]) {
+          doc.early.clear();
+          if (!doc.inflight && !doc.buffer) docs.delete(id);
+        }
+        texts.clear();
         setServer((d) => {
           d.meta = msg.box;
           d.rev = msg.rev;
           d.sid = msg.self.sid;
           const next = Object.fromEntries(msg.widgets.map((w) => [w.id, w]));
           for (const id of Object.keys(d.widgets)) if (!next[id]) delete d.widgets[id];
-          for (const w of msg.widgets) {
-            if (d.widgets[w.id]) Object.assign(d.widgets[w.id]!, w);
-            else d.widgets[w.id] = w;
-          }
+          mergeAll(d, msg.widgets);
         });
         setPeers(() => Object.fromEntries([msg.self, ...msg.peers].map((p) => [p.sid, p])));
-        setLeases(() => ({ ...msg.leases }));
+        resumeTyping(msg.widgets);
         if (!welcomed) {
           welcomed = true;
           clearTimeout(connectTimer);
@@ -272,13 +338,13 @@ function createSession(boxId: string, identity: () => Hello) {
         setServer((d) => {
           d.rev = msg.rev;
           for (const id of msg.remove) delete d.widgets[id];
-          for (const w of msg.upsert) {
-            if (d.widgets[w.id]) Object.assign(d.widgets[w.id]!, w);
-            else d.widgets[w.id] = w;
-          }
+          mergeAll(d, msg.upsert);
         });
+        for (const id of msg.remove) {
+          texts.delete(id);
+          dropDoc(id);
+        }
         if (msg.opId && msg.by === server.sid) {
-          textOps.delete(msg.opId);
           dropPending(msg.opId);
           settleOp(msg.opId);
         }
@@ -287,19 +353,12 @@ function createSession(boxId: string, identity: () => Hello) {
       case "rejected": {
         dropPending(msg.opId);
         settleOp(msg.opId, new OpRejected(msg.message));
-        // Typed text the server refused means the note isn't ours to type
-        // in any more. Let go of it here too, so the note ends the edit and
-        // keeps what didn't save.
-        const note = textOps.get(msg.opId);
-        if (note !== undefined) {
-          textOps.delete(msg.opId);
-          if (leases[note] === server.sid)
-            setLeases((d) => {
-              delete d[note];
-            });
-        }
+        for (const [id, doc] of docs) if (doc.inflight?.opId === msg.opId) loseTyping(id);
         return;
       }
+      case "text":
+        onText(msg);
+        return;
       case "join":
         setPeers((d) => {
           d[msg.peer.sid] = msg.peer;
@@ -323,18 +382,6 @@ function createSession(boxId: string, identity: () => Hello) {
           if (p) p.presence = msg.presence;
         });
         return;
-      case "lease": {
-        setLeases((d) => {
-          if (msg.holder) d[msg.id] = msg.holder;
-          else delete d[msg.id];
-        });
-        const waiter = leaseWaiters.get(msg.id);
-        if (waiter) {
-          leaseWaiters.delete(msg.id);
-          waiter(msg.holder === server.sid);
-        }
-        return;
-      }
       case "meta":
         setServer((d) => {
           d.meta = msg.box;
@@ -364,13 +411,13 @@ function createSession(boxId: string, identity: () => Hello) {
       setServer((d) => {
         d.status = status;
       });
-      if (status !== "open") {
-        failAllInflight("Lost the connection. That change wasn't saved.");
-        textOps.clear();
-      }
+      // Typing isn't failed: it waits, and goes again once the bento's back.
+      if (status !== "open") failAllInflight("Lost the connection. That change wasn't saved.");
+      // Everyone else is shown again by the next welcome. You stay, so your
+      // role (and an open editor) holds while the line is down.
       if (status === "reconnecting") {
-        setPeers(() => ({}));
-        setLeases(() => ({}));
+        const me = peers[server.sid];
+        setPeers(() => (me ? { [me.sid]: me } : {}));
       }
       if (status === "closed" && welcomed && close?.code === CLOSE.overCapacity) {
         setServer((d) => {
@@ -683,69 +730,244 @@ function createSession(boxId: string, identity: () => Hello) {
 
   // -------------------------------------------------------------- typing
 
-  function takeLease(id: string): Promise<boolean> {
-    if (leases[id] === server.sid) return Promise.resolve(true);
-    if (!socket.send({ t: "lease", id, take: true })) return Promise.resolve(false);
-    return new Promise((resolve) => {
-      leaseWaiters.get(id)?.(false);
-      leaseWaiters.set(id, resolve);
-      setTimeout(() => {
-        if (leaseWaiters.get(id) === resolve) {
-          leaseWaiters.delete(id);
-          resolve(false);
-        }
-      }, 3000);
+  /** A note's text as the server last confirmed it, and its version. */
+  function known(id: string): { text: string; tv: number } | null {
+    const k = docs.get(id)?.known ?? texts.get(id);
+    if (k) return k;
+    // A note you just added, not confirmed yet.
+    const w = base(id);
+    return w?.kind === "note" ? { text: w.text, tv: w.tv ?? 0 } : null;
+  }
+
+  /** The text you see, for drawing: what's saved, plus your typing in flight. */
+  function shownText(id: string): string {
+    const draft = drafts[id];
+    if (draft !== undefined) return draft;
+    const w = base(id);
+    return w?.kind === "note" ? w.text : "";
+  }
+
+  type TextWatcher = (op: TextOp | null, text: string) => void;
+  const watchers = new Map<string, Set<TextWatcher>>();
+
+  /**
+   * Calls `fn` with each change to a note's text that didn't come from your
+   * own typing, as an edit of the text you saw, so an open editor can apply
+   * it and keep your caret where it was; `text` is the text after it. A
+   * null edit means the text was replaced outright (your typing was
+   * refused). Returns the unsubscribe.
+   */
+  function watchText(id: string, fn: TextWatcher): () => void {
+    let set = watchers.get(id);
+    if (!set) watchers.set(id, (set = new Set()));
+    set.add(fn);
+    return () => {
+      set.delete(fn);
+      if (set.size === 0) watchers.delete(id);
+    };
+  }
+
+  function notify(id: string, op: TextOp | null, text: string) {
+    for (const fn of watchers.get(id) ?? []) fn(op, text);
+  }
+
+  function showDraft(id: string, doc: TextDoc) {
+    const text = doc.local;
+    setDrafts((d) => {
+      d[id] = text;
     });
   }
 
-  function releaseLease(id: string) {
-    flushText(id);
-    socket.send({ t: "lease", id, take: false });
+  function writeKnown(id: string, k: { text: string; tv: number }) {
+    setServer((d) => {
+      const w = d.widgets[id];
+      if (w?.kind === "note") Object.assign(w, k);
+    });
   }
 
-  const textTimers = new Map<string, { timer: number; text: string }>();
+  /** You typed: `op` is an edit of the text you see. Shows at once. */
+  function editText(id: string, op: TextOp) {
+    if (isNoopText(op)) return;
+    let doc = docs.get(id);
+    if (!doc) {
+      const k = known(id);
+      if (!k) return;
+      doc = {
+        known: k,
+        local: k.text,
+        inflight: null,
+        buffer: null,
+        early: new Map(),
+        fresh: null,
+        sentAt: 0,
+        timer: 0,
+      };
+      docs.set(id, doc);
+      texts.delete(id);
+    }
+    doc.local = applyText(doc.local, op);
+    doc.buffer = doc.buffer ? composeText(doc.buffer, op) : op;
+    showDraft(id, doc);
+    scheduleText(id, doc);
+  }
+
+  function scheduleText(id: string, doc: TextDoc) {
+    if (doc.timer || doc.inflight || !doc.buffer) return;
+    const wait = Math.max(0, TEXT_MS - (Date.now() - doc.sentAt));
+    doc.timer = window.setTimeout(() => {
+      doc.timer = 0;
+      sendText(id, doc, false);
+    }, wait);
+  }
+
+  /** Sends the buffer as the next edit, or (`resend`) the one in flight again after a reconnect. */
+  function sendText(id: string, doc: TextDoc, resend: boolean) {
+    if (doc.inflight && !resend) return;
+    if (!doc.inflight) {
+      if (!doc.buffer) return;
+      doc.inflight = { opId: randomId(10), ops: doc.buffer };
+      doc.buffer = null;
+    }
+    doc.sentAt = Date.now();
+    // Offline, it stays in flight and goes again with the next welcome.
+    socket.send({
+      t: "op",
+      opId: doc.inflight.opId,
+      op: { type: "text", id, base: doc.known.tv, ops: doc.inflight.ops, ...(resend ? { resend } : {}) },
+    });
+  }
+
+  /** Typing done and confirmed: what you see is the saved text again. */
+  function settleDoc(id: string, doc: TextDoc) {
+    if (doc.inflight || doc.buffer || doc.early.size > 0 || docs.get(id) !== doc) return;
+    docs.delete(id);
+    texts.set(id, doc.known);
+    setDrafts((d) => {
+      delete d[id];
+    });
+  }
+
+  /** The note's gone: so is any typing for it. */
+  function dropDoc(id: string) {
+    const doc = docs.get(id);
+    if (!doc) return;
+    clearTimeout(doc.timer);
+    docs.delete(id);
+    setDrafts((d) => {
+      delete d[id];
+    });
+  }
+
   /**
-   * Typed text on its way, by opId → note id. Text isn't awaited like other
-   * ops, but a refusal still matters: it means someone else has the note.
+   * The bento refused your typing (or can't catch you up after a long time
+   * away). The note goes back to what's saved, and what you'd typed is kept
+   * for you to copy.
    */
-  const textOps = new Map<string, string>();
-
-  function sendText(id: string, text: string) {
-    const opId = randomId(8);
-    if (socket.send({ t: "op", opId, op: { type: "patch", id, text } })) textOps.set(opId, id);
+  function loseTyping(id: string) {
+    const doc = docs.get(id);
+    if (!doc) return;
+    clearTimeout(doc.timer);
+    doc.timer = 0;
+    const mine = doc.local;
+    doc.known = doc.fresh ?? doc.known;
+    doc.local = doc.known.text;
+    doc.inflight = doc.buffer = doc.fresh = null;
+    writeKnown(id, doc.known);
+    showDraft(id, doc);
+    if (mine !== doc.known.text)
+      setLost((d) => {
+        d[id] = mine;
+      });
+    notify(id, null, doc.known.text);
+    // Edits that came in while we waited follow on from the fresh text.
+    const early = [...doc.early.values()].sort((a, b) => a.v - b.v);
+    doc.early.clear();
+    for (const m of early) onText(m);
+    settleDoc(id, doc);
   }
 
-  /** Streams typed text to everyone, coalesced to one message per 80ms. */
-  function typeText(id: string, text: string) {
-    const pending = textTimers.get(id);
-    if (pending) {
-      pending.text = text;
+  /** After a reconnect: send typing that never got an answer again, and catch up. */
+  function resumeTyping(widgets: Widget[]) {
+    const fresh = new Map(widgets.flatMap((w) => (w.kind === "note" ? [[w.id, w] as const] : [])));
+    for (const [id, doc] of [...docs]) {
+      const w = fresh.get(id);
+      if (!w) {
+        dropDoc(id);
+        continue;
+      }
+      clearTimeout(doc.timer);
+      doc.timer = 0;
+      doc.fresh = { text: w.text, tv: w.tv ?? 0 };
+      sendText(id, doc, true);
+    }
+  }
+
+  /** A typed edit from anyone, yours included, in the order the server applied them. */
+  function onText(msg: TextMessage) {
+    const doc = docs.get(msg.id);
+    const k = known(msg.id);
+    if (!k || msg.v <= k.tv) return;
+    if (msg.v > k.tv + 1) {
+      doc?.early.set(msg.v, msg);
       return;
     }
-    sendText(id, text);
-    const entry = { text, timer: 0 };
-    entry.timer = window.setTimeout(() => {
-      textTimers.delete(id);
-      const latest = entry.text;
-      if (latest !== text) sendText(id, latest);
-    }, TEXT_MS);
-    textTimers.set(id, entry);
+    const next = { text: applyText(k.text, msg.ops), tv: msg.v };
+    if (doc) doc.known = next;
+    else texts.set(msg.id, next);
+    writeKnown(msg.id, next);
+    if (doc && doc.inflight?.opId === msg.opId) {
+      // Ours, confirmed. Send what we typed meanwhile.
+      doc.inflight = null;
+      doc.fresh = null;
+      scheduleText(msg.id, doc);
+    } else {
+      // Someone else's: move our unconfirmed typing past it, and it past ours.
+      let incoming = msg.ops;
+      if (doc?.inflight) {
+        const mine = doc.inflight.ops;
+        doc.inflight.ops = transformText(mine, incoming, "right");
+        incoming = transformText(incoming, mine, "left");
+      }
+      if (doc?.buffer) {
+        const mine = doc.buffer;
+        doc.buffer = transformText(mine, incoming, "right");
+        incoming = transformText(incoming, mine, "left");
+      }
+      if (doc) {
+        doc.local = applyText(doc.local, incoming);
+        showDraft(msg.id, doc);
+      }
+      notify(msg.id, incoming, doc ? doc.local : next.text);
+    }
+    moveCarets(msg);
+    if (!doc) return;
+    const following = doc.early.get(msg.v + 1);
+    if (following) {
+      doc.early.delete(following.v);
+      onText(following);
+    }
+    settleDoc(msg.id, doc);
   }
 
-  function flushText(id: string) {
-    const entry = textTimers.get(id);
-    if (!entry) return;
-    clearTimeout(entry.timer);
-    textTimers.delete(id);
-    sendText(id, entry.text);
+  /** Other people's carets in the note follow the text an edit moved. */
+  function moveCarets(msg: TextMessage) {
+    const moved = Object.values(peers).filter(
+      (p) => p.sid !== msg.by && p.sid !== server.sid && p.presence.caret?.id === msg.id,
+    );
+    if (moved.length === 0) return;
+    setPeers((d) => {
+      for (const { sid } of moved) {
+        const c = d[sid]?.presence.caret;
+        if (!c) continue;
+        c.start = transformIndex(c.start, msg.ops);
+        c.end = transformIndex(c.end, msg.ops);
+      }
+    });
   }
 
-  /** Drops typed text not sent yet: the note is someone else's now. */
-  function cancelText(id: string) {
-    const entry = textTimers.get(id);
-    if (!entry) return;
-    clearTimeout(entry.timer);
-    textTimers.delete(id);
+  /** People (not this tab) whose caret is in a note: they're typing there. */
+  function typists(id: string): Peer[] {
+    return Object.values(peers).filter((p) => p.sid !== server.sid && p.presence.caret?.id === id);
   }
 
   // ------------------------------------------------------------ presence
@@ -809,7 +1031,7 @@ function createSession(boxId: string, identity: () => Hello) {
     document.removeEventListener("visibilitychange", onAttention);
     clearTimeout(connectTimer);
     clearTimeout(presenceTimer);
-    for (const { timer } of textTimers.values()) clearTimeout(timer);
+    for (const { timer } of docs.values()) clearTimeout(timer);
     failAllInflight("Closed.");
     socket.close();
   }
@@ -819,15 +1041,18 @@ function createSession(boxId: string, identity: () => Hello) {
     // state
     server: server as Store<ServerState>,
     peers: peers as Store<Record<string, Peer>>,
-    leases: leases as Store<Record<string, string>>,
     ids,
     rect,
     rects,
     color: (id: string): NoteColor => overlay.colors[id] ?? base(id)?.color ?? "tamago",
-    text: (id: string) => {
-      const w = base(id);
-      return w?.kind === "note" ? w.text : "";
-    },
+    text: shownText,
+    /** What you typed that the bento refused, kept for you to copy. */
+    lostText: (id: string): string | null => lost[id] ?? null,
+    dismissLost: (id: string) =>
+      setLost((d) => {
+        delete d[id];
+      }),
+    typists,
     textSize: (id: string): TextSize => {
       const w = base(id);
       return overlay.sizes[id] ?? (w?.kind === "note" ? w.size : undefined) ?? DEFAULT_TEXT_SIZE;
@@ -872,10 +1097,8 @@ function createSession(boxId: string, identity: () => Hello) {
     setRole,
     remove,
     // live
-    takeLease,
-    releaseLease,
-    typeText,
-    cancelText,
+    editText,
+    watchText,
     setPresence,
     rename,
   };

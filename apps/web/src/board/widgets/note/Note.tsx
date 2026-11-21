@@ -1,5 +1,27 @@
-import { createEffect, createMemo, createSignal, For, Match, onSettled, Show, Switch } from "solid-js";
-import { NOTE_TEXT_MAX, SYSTEM_AUTHOR, TEXT_SIZES, type TextSize } from "@bentogether/shared";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  Match,
+  onCleanup,
+  onSettled,
+  Show,
+  Switch,
+} from "solid-js";
+import {
+  NOTE_TEXT_MAX,
+  SYSTEM_AUTHOR,
+  TEXT_SIZES,
+  applyText,
+  composeText,
+  diffText,
+  transformIndex,
+  transformText,
+  type Peer,
+  type TextOp,
+  type TextSize,
+} from "@bentogether/shared";
 import { personVars } from "../../../lib/identity";
 import {
   autoBullet,
@@ -23,104 +45,135 @@ const FONT_SIZE: Record<TextSize, number> = { s: 15, m: 19, l: 24, xl: 31 };
 /** Notes this many columns wide or narrower fold the swatches into one dot. */
 const COMPACT_TOOLS_MAX_W = 2;
 
+/** Someone else's caret and selection in a note, in their color. */
+type Caret = { sid: string; start: number; end: number; hue: number; name: string };
+
+/** "Mochi", "Mochi and Nori", "3 people". */
+function names(people: Peer[]): string {
+  if (people.length <= 2) return people.map((p) => p.name).join(" and ");
+  return `${people.length} people`;
+}
+
 /**
- * One widget holding a note. Click to type (one person at a time,
- * via a lease); everyone else sees the text stream in with the typist's
- * caret in their color.
+ * One widget holding a note. Click to type; anyone can type at once, and
+ * everyone sees the others' text stream in with their carets in their
+ * colors. Edits are merged by the server (shared/text.ts).
  */
 export function Note(props: WidgetProps) {
   const s = () => props.session;
   const [editing, setEditing] = createSignal(false);
-  const [draft, setDraft] = createSignal("");
   let textarea: HTMLTextAreaElement | undefined;
+  let mirror: HTMLDivElement | undefined;
+  /** What the textarea shows. Each input is diffed against it to make an edit. */
+  let shown = "";
+  /**
+   * Others' edits that arrived while an input method was composing (IME),
+   * held back so the composition isn't broken, and shown when it ends.
+   */
+  let unseen: TextOp | null = null;
+  let composing = false;
+  let unwatch: (() => void) | null = null;
+  onCleanup(() => unwatch?.());
 
-  const holder = createMemo(() => s().leases[props.id] ?? null);
-  const typist = createMemo(() => {
-    const sid = holder();
-    return sid && !s().isMine(sid) ? (s().peers[sid] ?? null) : null;
-  });
-  const remoteCaret = createMemo(() => {
-    const p = typist();
-    const c = p?.presence.caret;
-    return p && c && c.id === props.id ? { ...c, hue: p.hue, name: p.name } : null;
-  });
+  const typists = createMemo(() => s().typists(props.id));
+  const carets = createMemo((): Caret[] =>
+    typists().flatMap((p) => {
+      const c = p.presence.caret;
+      return c ? [{ sid: p.sid, start: c.start, end: c.end, hue: p.hue, name: p.name }] : [];
+    }),
+  );
 
   /**
-   * Text you typed that the bento never got, kept after you lost the note so
-   * nothing you wrote vanishes. Shown until you dismiss it, or until the
-   * note's saved text catches up with it (a reconnect that did save it).
+   * Text you typed that the bento refused (the note filled up, you became a
+   * viewer, or you were away too long to catch up), kept so nothing you
+   * wrote vanishes. Shown until you dismiss it, or until the note's text
+   * matches it.
    */
-  const [unsaved, setUnsaved] = createSignal<string | null>(null);
   const showUnsaved = () => {
-    const u = unsaved();
+    const u = s().lostText(props.id);
     return u !== null && u !== s().text(props.id) ? u : null;
   };
 
-  // Losing the note ends your edit: someone took it over after you went
-  // quiet, you reconnected, the bento refused your text, or it was deleted.
-  // Everything the bento confirmed is already saved; anything past that is
-  // kept as a draft to copy.
+  // Typing refused ends the edit, with the words kept on the note.
   createEffect(
-    () => {
-      const h = holder();
-      if (!editing() || (h !== null && s().isMine(h))) return null;
-      return {
-        draft: draft(),
-        saved: s().text(props.id),
-        by: h === null ? null : (s().peers[h]?.name ?? "Someone"),
-      };
+    () => editing() && s().lostText(props.id) !== null,
+    (hit) => {
+      if (!hit) return;
+      stopEditing();
+      props.onNotice?.("Your last words didn't save; they're kept on the note.");
     },
-    (lost) => {
-      if (!lost) return;
-      s().cancelText(props.id);
-      setEditing(false);
-      s().setPresence({ action: null, caret: null });
-      const kept = lost.draft !== lost.saved;
-      if (kept) setUnsaved(lost.draft);
-      if (lost.by) {
-        props.onNotice?.(
-          kept
-            ? `${lost.by} took over this note. Your last words didn't save; they're kept on the note.`
-            : `${lost.by} took over this note while you were away. Everything you wrote is saved.`,
-        );
-      }
+  );
+
+  // Made a viewer mid-sentence: the editor closes.
+  createEffect(
+    () => editing() && Boolean(props.readOnly),
+    (stop) => {
+      if (stop) stopEditing();
     },
   );
 
   async function copyUnsaved() {
-    const text = unsaved();
+    const text = s().lostText(props.id);
     if (text === null) return;
     try {
       await navigator.clipboard.writeText(text);
-      setUnsaved(null);
+      s().dismissLost(props.id);
       props.onNotice?.("Copied your text.");
     } catch {
       props.onError("Couldn't copy. Select the text and copy it instead.");
     }
   }
 
-  // Focus once the textarea exists.
+  // Fill and focus the textarea once it exists.
   createEffect(
     () => editing(),
     (on) => {
       if (on && textarea) {
+        textarea.value = shown;
         textarea.focus();
         const end = textarea.value.length;
         textarea.setSelectionRange(end, end);
+        sendCaret();
       }
     },
   );
 
-  async function startEditing() {
-    if (editing() || props.readOnly) return;
-    // Asked even when someone holds it: the server hands over a note whose
-    // typist has gone quiet, and says no otherwise.
-    const granted = await s().takeLease(props.id);
-    if (!granted) {
-      props.onError(typist() ? `${typist()!.name} is typing here.` : "Couldn't open this note.");
+  /**
+   * Someone else's edit, as an edit of the text you see. Applied to the
+   * textarea with your caret and selection moved along with the text, so
+   * you can keep typing through it. Null: the text was replaced.
+   */
+  function showRemote(op: TextOp | null, text: string) {
+    if (op === null) {
+      unseen = null;
+      shown = text;
+      if (textarea) textarea.value = shown;
       return;
     }
-    setDraft(s().text(props.id));
+    if (!textarea) {
+      shown = applyText(shown, op);
+      return;
+    }
+    if (composing) {
+      unseen = unseen ? composeText(unseen, op) : op;
+      return;
+    }
+    const { selectionStart, selectionEnd, selectionDirection, scrollTop } = textarea;
+    shown = applyText(shown, op);
+    textarea.value = shown;
+    textarea.setSelectionRange(
+      transformIndex(selectionStart, op),
+      transformIndex(selectionEnd, op),
+      selectionDirection,
+    );
+    textarea.scrollTop = scrollTop;
+  }
+
+  function startEditing() {
+    if (editing() || props.readOnly) return;
+    shown = s().text(props.id);
+    unseen = null;
+    unwatch = s().watchText(props.id, showRemote);
     setEditing(true);
     s().setPresence({ action: "typing" });
   }
@@ -128,7 +181,9 @@ export function Note(props: WidgetProps) {
   function stopEditing() {
     if (!editing()) return;
     setEditing(false);
-    s().releaseLease(props.id);
+    unwatch?.();
+    unwatch = null;
+    composing = false;
     s().setPresence({ action: null, caret: null });
   }
 
@@ -137,6 +192,11 @@ export function Note(props: WidgetProps) {
     s().setPresence({
       caret: { id: props.id, start: textarea.selectionStart, end: textarea.selectionEnd },
     });
+  }
+
+  /** Others' carets drawn behind the textarea scroll with it. */
+  function syncMirror() {
+    if (mirror && textarea) mirror.scrollTop = textarea.scrollTop;
   }
 
   /**
@@ -164,10 +224,24 @@ export function Note(props: WidgetProps) {
         return;
       }
     }
-    const text = el.value.slice(0, NOTE_TEXT_MAX);
-    setDraft(text);
-    s().typeText(props.id, text);
+    const after = el.value;
+    const op = diffText(shown, after, el.selectionEnd);
+    shown = after;
+    if (unseen) {
+      // The session already has the held-back edits; ours goes after them.
+      const held = unseen;
+      unseen = transformText(held, op, "left");
+      s().editText(props.id, transformText(op, held, "right"));
+    } else s().editText(props.id, op);
     sendCaret();
+    syncMirror();
+  }
+
+  function onCompositionEnd() {
+    composing = false;
+    const held = unseen;
+    unseen = null;
+    if (held) showRemote(held, applyText(shown, held));
   }
 
   /** While typing, Escape finishes and every other key belongs to the text. */
@@ -197,7 +271,7 @@ export function Note(props: WidgetProps) {
       deleteLabel="Delete note"
       editing={editing()}
       style={{ "--fs": FONT_SIZE[s().textSize(props.id)] }}
-      onActivate={() => void startEditing()}
+      onActivate={startEditing}
       onKey={onKey}
     >
       <div class={styles.body}>
@@ -206,15 +280,19 @@ export function Note(props: WidgetProps) {
           fallback={
             <NoteText
               text={s().text(props.id)}
-              caret={remoteCaret()}
-              placeholder={typist() ? "" : "Click to write…"}
+              carets={carets()}
+              placeholder={typists().length ? "" : "Click to write…"}
             />
           }
         >
+          <Show when={carets().length > 0}>
+            <div ref={mirror} class={[styles.text, styles.mirror]} aria-hidden="true">
+              <CaretText text={s().text(props.id)} carets={carets()} />
+            </div>
+          </Show>
           <textarea
             ref={textarea}
             class={styles.input}
-            value={draft()}
             maxlength={NOTE_TEXT_MAX}
             aria-label="Note text"
             onInput={onInput}
@@ -230,6 +308,9 @@ export function Note(props: WidgetProps) {
             onSelect={sendCaret}
             onKeyUp={sendCaret}
             onPointerUp={sendCaret}
+            onScroll={syncMirror}
+            onCompositionStart={() => (composing = true)}
+            onCompositionEnd={onCompositionEnd}
             onBlur={stopEditing}
           />
         </Show>
@@ -242,7 +323,7 @@ export function Note(props: WidgetProps) {
                 <button type="button" onClick={() => void copyUnsaved()}>
                   Copy
                 </button>
-                <button type="button" onClick={() => setUnsaved(null)}>
+                <button type="button" onClick={() => s().dismissLost(props.id)}>
                   Dismiss
                 </button>
               </div>
@@ -252,10 +333,13 @@ export function Note(props: WidgetProps) {
       </div>
 
       <footer class={frameParts.meta}>
-        <Show when={typist()} fallback={<span class={frameParts.byline}>by {author()}</span>}>
-          {(p) => (
-            <span class={frameParts.typing} style={personVars(p().hue)}>
-              {p().name} is typing
+        <Show
+          when={typists().length > 0 && typists()}
+          fallback={<span class={frameParts.byline}>by {author()}</span>}
+        >
+          {(people) => (
+            <span class={frameParts.typing} style={personVars(people()[0]!.hue)}>
+              {names(people())} {people().length === 1 ? "is" : "are"} typing
             </span>
           )}
         </Show>
@@ -298,24 +382,67 @@ export function Note(props: WidgetProps) {
 }
 
 /**
- * Read-only text, with another person's caret and selection drawn in their
- * color. Uses the same typography as the textarea, so text doesn't shift
+ * Text split up around other people's carets and selections: each
+ * selection highlighted in its owner's color, each caret a beam with a name
+ * flag. Plain text, so carets line up character for character.
+ */
+type Piece = { text: string; hue: number | null } | { caret: Caret };
+const caretOf = (p: Piece) => ("caret" in p ? p.caret : null);
+const markOf = (p: Piece) => (!("caret" in p) && p.hue !== null ? { text: p.text, hue: p.hue } : null);
+const textOf = (p: Piece) => ("caret" in p ? "" : p.text);
+
+function CaretText(props: { text: string; carets: Caret[] }) {
+  const pieces = createMemo((): Piece[] => {
+    const t = props.text;
+    const clamp = (n: number) => Math.max(0, Math.min(n, t.length));
+    const cs = props.carets.map((c) => ({
+      c,
+      a: clamp(Math.min(c.start, c.end)),
+      b: clamp(Math.max(c.start, c.end)),
+      at: clamp(c.end),
+    }));
+    const cuts = [...new Set([0, t.length, ...cs.flatMap((x) => [x.a, x.b, x.at])])].sort((x, y) => x - y);
+    const out: Piece[] = [];
+    cuts.forEach((at, i) => {
+      for (const x of cs) if (x.at === at) out.push({ caret: x.c });
+      const to = cuts[i + 1];
+      if (to === undefined) return;
+      const cover = cs.find((x) => x.a < x.b && x.a <= at && to <= x.b);
+      out.push({ text: t.slice(at, to), hue: cover ? cover.c.hue : null });
+    });
+    return out;
+  });
+  return (
+    // Pieces are rebuilt on every keystroke; keyed by position, the DOM is reused.
+    <For each={pieces()} keyed={false}>
+      {(piece) => (
+        <Switch fallback={textOf(piece())}>
+          <Match when={caretOf(piece())}>
+            {(c) => (
+              <span class={styles.caret} style={personVars(c().hue)} aria-hidden="true">
+                <span class={styles.flag}>{c().name}</span>
+              </span>
+            )}
+          </Match>
+          <Match when={markOf(piece())}>
+            {(m) => (
+              <mark class={styles.selection} style={personVars(m().hue)}>
+                {m().text}
+              </mark>
+            )}
+          </Match>
+        </Switch>
+      )}
+    </For>
+  );
+}
+
+/**
+ * Read-only text, with other people's carets and selections drawn in their
+ * colors. Uses the same typography as the textarea, so text doesn't shift
  * when you start typing.
  */
-function NoteText(props: {
-  text: string;
-  placeholder: string;
-  caret: { start: number; end: number; hue: number; name: string } | null;
-}) {
-  const parts = createMemo(() => {
-    const c = props.caret;
-    const t = props.text;
-    if (!c) return null;
-    const a = Math.min(c.start, c.end, t.length);
-    const b = Math.min(Math.max(c.start, c.end), t.length);
-    return { before: t.slice(0, a), sel: t.slice(a, b), after: t.slice(b) };
-  });
-
+function NoteText(props: { text: string; placeholder: string; carets: Caret[] }) {
   // When the text outgrows the note it scrolls; mark which edges have more
   // so they fade, and keep another person's caret in view as they type.
   let el!: HTMLDivElement;
@@ -353,7 +480,7 @@ function NoteText(props: {
   return (
     <div ref={el} class={styles.text} data-empty={props.text.length === 0} data-more={more() || undefined}>
       <Show
-        when={parts()}
+        when={props.carets.length > 0}
         fallback={
           props.text ? (
             <NoteLines text={props.text} />
@@ -362,18 +489,7 @@ function NoteText(props: {
           )
         }
       >
-        {(p) => (
-          <>
-            {p().before}
-            <mark class={styles.selection} style={personVars(props.caret!.hue)}>
-              {p().sel}
-            </mark>
-            <span class={styles.caret} style={personVars(props.caret!.hue)} aria-hidden="true">
-              <span class={styles.flag}>{props.caret!.name}</span>
-            </span>
-            {p().after}
-          </>
-        )}
+        <CaretText text={props.text} carets={props.carets} />
       </Show>
     </div>
   );
@@ -382,7 +498,7 @@ function NoteText(props: {
 /**
  * The note's text with its markdown shown: headings, lists, boxes, quotes
  * and inline styles. While someone else types it falls back to plain text,
- * so their caret lines up character for character.
+ * so their carets line up character for character.
  */
 function NoteLines(props: { text: string }) {
   const lines = createMemo(() => parseNote(props.text));

@@ -23,7 +23,7 @@ export type WidgetProps = {
   ringHue: number | null;
   onPointerDown: (e: PointerEvent, mode: "move" | "resize") => void;
   onError: (message: string) => void;
-  /** A calm heads-up, not an error (say, someone took over your note). */
+  /** A calm heads-up, not an error (say, your typing was kept to copy). */
   onNotice?: (message: string) => void;
   /** Viewers see widgets but can't move, resize or delete them. */
   readOnly: boolean;

@@ -25,7 +25,7 @@ export class TokenBucket {
 }
 
 // Per connection. Presence is chatty by design (20 Hz cursors), edits less
-// so (typing patches every 80 ms), settings rarely. Each limit sits well
+// so (typed edits at most every 50 ms per note), settings rarely. Each limit sits well
 // above what the web client sends, so only a runaway or hostile client
 // ever meets one.
 

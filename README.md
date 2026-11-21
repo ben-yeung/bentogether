@@ -10,7 +10,7 @@ More detail: [Solid 2.0 notes](docs/SOLID-2.md) · [brand guide](docs/BRAND.md).
 
 - Live cursors, typing carets and drag previews for everyone in a bento
 - Sticky notes: add, drag, resize, recolor, set text size; "- " starts a bullet list, and headings, **bold**, _italic_, `code` and [ ] boxes show formatted
-- One typist per note at a time; if they go quiet for 30 s, the next person can take the note over, and any words that didn't save stay on their note to copy
+- Several people can type in one note at once: edits merge on the server, everyone's caret and selection show in their own color, and typing carries on through a dropped connection
 - To-do lists: a title line and items anyone can add, tick, edit, reorder and clear
 - Budgets: a shared total to spend from: type an amount and press − or +, tap the total to set it, and a history of who changed it
 - Timers: one countdown for everyone, counted on each screen from the server's clock
@@ -33,20 +33,21 @@ More detail: [Solid 2.0 notes](docs/SOLID-2.md) · [brand guide](docs/BRAND.md).
  │  server store  ◀── messages  │          │  CORS/origin check, create box,      │
  │  optimistic overlay (actions)│          │  route socket → Durable Object       │
  │  pending edits (bursty ops)  │          │                                      │
+ │  typing (OT, 1 in flight)    │          │                                      │
  │  presence (≤20 Hz, focused)  │          │                                      │
  │ Board / Note / Cursors       │ ◀─────── │ Box Durable Object (box.ts), 1 per box│
  └──────────────────────────────┘          │  Room (room.ts): pure rules          │
                                            │  SQLite storage, hibernating sockets │
                                            └──────────────────────────────────────┘
-          packages/shared: protocol (valibot), grid, layout engine, identity
+          packages/shared: protocol (valibot), grid, layout engine, identity, text OT
 ```
 
-| Path              | What                                                                 |
-| ----------------- | -------------------------------------------------------------------- |
-| `packages/shared` | Wire protocol and schemas, grid geometry, the `settle` layout engine |
-| `apps/realtime`   | Cloudflare Worker + `Box` Durable Object; `Room` holds all box rules |
-| `apps/web`        | Solid 2.0 client (Vite), deployed to Vercel                          |
-| `e2e`             | Playwright tests with two or three real browsers in one box          |
+| Path              | What                                                                    |
+| ----------------- | ----------------------------------------------------------------------- |
+| `packages/shared` | Wire protocol, grid geometry, `settle` layout, note text OT (`text.ts`) |
+| `apps/realtime`   | Cloudflare Worker + `Box` Durable Object; `Room` holds all box rules    |
+| `apps/web`        | Solid 2.0 client (Vite), deployed to Vercel                             |
+| `e2e`             | Playwright tests with two or three real browsers in one box             |
 
 **Key decisions**
 
@@ -55,6 +56,11 @@ More detail: [Solid 2.0 notes](docs/SOLID-2.md) · [brand guide](docs/BRAND.md).
 - **Confirmed means saved.** A change is written to SQLite in the same event that confirms it,
   so the Durable Object's output gate holds the confirmation until it's durable. Only typed note
   text is coalesced and flushed every 1.5 s.
+- **Typing merges, it doesn't lock.** Each keystroke batch is an edit (keep / insert / delete)
+  against a numbered version of the note. The Durable Object orders them and moves a late edit
+  past the ones it missed (operational transform); each client keeps one edit in flight and moves
+  its own unconfirmed typing past everyone else's. After a reconnect, unanswered typing is sent
+  again and the server replays what was missed, so nothing is applied twice.
 - **Shared layout.** The same `settle()` runs on server and client, so drag previews match.
 - **Grid units everywhere.** Every viewer sees the same layout and line wraps at any screen size.
 - **Permissions are server-side.** Owner token (hashed), roles per device, PBKDF2 passwords.

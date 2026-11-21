@@ -27,8 +27,9 @@ import {
   type Op,
   type ServerMessage,
   type TodoWidget,
+  type TextOp,
 } from "@bentogether/shared";
-import { LEASE_IDLE_MS, Room, type Outgoing } from "./room";
+import { Room, TEXT_HISTORY, type Outgoing } from "./room";
 
 const meta = {
   id: "box12345",
@@ -159,26 +160,103 @@ describe("ops", () => {
   });
 });
 
-describe("text leases", () => {
-  it("only the lease holder can type, and text saves lazily", () => {
+describe("typing in a note", () => {
+  const text = (id: string, base: number, ops: TextOp, resend?: boolean): Op => ({
+    type: "text",
+    id,
+    base,
+    ops,
+    ...(resend ? { resend } : {}),
+  });
+  const saved = (room: Room) => room.widgets.get("note0001") as NoteWidget;
+
+  it("applies an edit, sends it to everyone as the next version, and saves lazily", () => {
     const room = setup();
     room.apply("s1", "a", note("note0001"));
-    expect(room.apply("s1", "t0", { type: "patch", id: "note0001", text: "hi" }).out[0]!.msg.t).toBe(
-      "rejected",
-    );
-
-    room.lease("s1", "note0001", true);
-    const { persist } = room.apply("s1", "t1", { type: "patch", id: "note0001", text: "hi" });
+    const { out, persist } = room.apply("s1", "t1", text("note0001", 0, ["hi"]));
+    expect(out).toEqual([
+      {
+        target: { to: "all" },
+        msg: { t: "text", id: "note0001", v: 1, ops: ["hi"], by: "s1", opId: "t1" },
+      },
+    ]);
+    expect(saved(room)).toMatchObject({ text: "hi", tv: 1 });
     expect(persist.soon.has("note0001")).toBe(true);
     expect(persist.now.size).toBe(0);
+  });
 
-    const denied = room.lease("s2", "note0001", true);
-    expect(denied).toEqual([
-      { target: { to: "one", sid: "s2" }, msg: { t: "lease", id: "note0001", holder: "s1" } },
+  it("lets two people type at once, moving the later edit past the earlier", () => {
+    const room = setup();
+    room.apply("s1", "a", note("note0001"));
+    room.apply("s1", "t1", text("note0001", 0, ["hello"]));
+    // Both typed against "hello" (version 1).
+    room.apply("s1", "t2", text("note0001", 1, [5, "!"]));
+    const { out } = room.apply("s2", "t3", text("note0001", 1, ["Oh, "]));
+    expect(saved(room)).toMatchObject({ text: "Oh, hello!", tv: 3 });
+    expect(out[0]!.msg).toMatchObject({ t: "text", v: 3, ops: ["Oh, "], by: "s2" });
+
+    // Same spot: the edit applied first goes first.
+    room.apply("s1", "t4", text("note0001", 3, [10, "A"]));
+    room.apply("s2", "t5", text("note0001", 3, [10, "B"]));
+    expect(saved(room).text).toBe("Oh, hello!AB");
+  });
+
+  it("refuses edits that don't fit: past the end, from the future, too long, or by a viewer", () => {
+    const room = setup();
+    room.apply("s1", "a", note("note0001"));
+    room.apply("s1", "t1", text("note0001", 0, ["abc"]));
+    const code = (op: Op, sid = "s1") => {
+      const m = room.apply(sid, "x", op).out[0]!.msg;
+      return m.t === "rejected" ? m.code : m.t;
+    };
+    expect(code(text("note0001", 1, [4, "x"]))).toBe("invalid");
+    expect(code(text("note0001", 5, ["x"]))).toBe("invalid");
+    expect(code(text("note0001", 1, [3, "x".repeat(2000)]))).toBe("limit");
+    expect(code(text("gone0001", 0, ["x"]))).toBe("not_found");
+    room.apply("s1", "b", {
+      type: "create",
+      id: "todo0001",
+      kind: "todo",
+      rect: { x: 5, y: 0, w: 3, h: 3 },
+      color: "tamago",
+      title: "",
+    });
+    expect(code(text("todo0001", 0, ["x"]))).toBe("invalid");
+    room.peers.get("s2")!.role = "viewer";
+    expect(code(text("note0001", 1, ["x"]), "s2")).toBe("forbidden");
+    expect(saved(room).text).toBe("abc");
+  });
+
+  it("refuses an edit older than the history it would need", () => {
+    const room = setup();
+    room.apply("s1", "a", note("note0001"));
+    for (let i = 0; i <= TEXT_HISTORY; i++) room.apply("s1", `t${i}`, text("note0001", i, ["x"]));
+    const m = room.apply("s2", "late", text("note0001", 0, ["y"])).out[0]!.msg;
+    expect(m).toMatchObject({ t: "rejected", code: "stale" });
+    // One version newer is still covered.
+    expect(room.apply("s2", "ok", text("note0001", 1, ["y"])).out[0]!.msg.t).toBe("text");
+  });
+
+  it("catches a reconnecting typist up, and doesn't apply their edit twice", () => {
+    const room = setup();
+    room.apply("s1", "a", note("note0001"));
+    room.apply("s1", "t1", text("note0001", 0, ["hi"]));
+    room.apply("s2", "t2", text("note0001", 1, [2, " there"]));
+    // s1 lost the line before hearing back about t1, and comes back as s3.
+    room.join("s3", hello("Mochi"));
+    const { out } = room.apply("s3", "t1", text("note0001", 0, ["hi"], true));
+    expect(out.map((o) => o.target)).toEqual([
+      { to: "one", sid: "s3" },
+      { to: "one", sid: "s3" },
     ]);
-    expect(room.apply("s2", "t2", { type: "patch", id: "note0001", text: "mine" }).out[0]!.msg.t).toBe(
-      "rejected",
-    );
+    expect(out.map((o) => o.msg.t === "text" && o.msg.opId)).toEqual(["t1", "t2"]);
+    expect(saved(room)).toMatchObject({ text: "hi there", tv: 2 });
+
+    // An edit that never arrived is applied after the catch-up.
+    const next = room.apply("s3", "t3", text("note0001", 0, ["Oh "], true)).out;
+    expect(next.map((o) => o.target.to)).toEqual(["one", "one", "all"]);
+    // Typed against the empty note, so it goes after what was applied first.
+    expect(saved(room).text).toBe("hi thereOh ");
   });
 
   it("anyone can change the text size, and it saves right away", () => {
@@ -190,88 +268,33 @@ describe("text leases", () => {
     expect(persist.now.has("note0001")).toBe(true);
   });
 
-  it("anyone can recolor a note someone is typing in", () => {
+  it("won't delete a note while someone else's caret is in it", () => {
     const room = setup();
     room.apply("s1", "a", note("note0001"));
-    room.lease("s1", "note0001", true);
-    const { out } = room.apply("s2", "c", { type: "patch", id: "note0001", color: "ume" });
-    expect(out[0]!.msg.t).toBe("applied");
-  });
-
-  describe("idle takeover", () => {
-    function timed() {
-      let now = 1000;
-      const room = new Room(meta, [], () => now);
-      room.join("s1", hello("Mochi"));
-      room.join("s2", hello("Nori"));
-      room.apply("s1", "a", note("note0001"));
-      room.lease("s1", "note0001", true);
-      room.apply("s1", "t1", { type: "patch", id: "note0001", text: "half a thought" });
-      return { room, wait: (ms: number) => (now += ms) };
-    }
-
-    it("hands a note over once its typist has been idle, keeping what they typed", () => {
-      const { room, wait } = timed();
-      wait(LEASE_IDLE_MS);
-      const out = room.lease("s2", "note0001", true);
-      expect(out).toEqual([{ target: { to: "all" }, msg: { t: "lease", id: "note0001", holder: "s2" } }]);
-      expect((room.widgets.get("note0001") as NoteWidget).text).toBe("half a thought");
-      // The old typist's late keystrokes are refused; the client keeps them as a draft.
-      expect(
-        room.apply("s1", "t2", { type: "patch", id: "note0001", text: "half a thought!" }).out[0]!.msg.t,
-      ).toBe("rejected");
+    room.presence("s2", { ...EMPTY, caret: { id: "note0001", start: 0, end: 0 } });
+    expect(room.apply("s1", "d", { type: "delete", id: "note0001" }).out[0]!.msg).toMatchObject({
+      code: "busy",
     });
-
-    it("keeps the note while its typist types or moves their caret", () => {
-      const { room, wait } = timed();
-      wait(LEASE_IDLE_MS - 1);
-      room.apply("s1", "t2", { type: "patch", id: "note0001", text: "still here" });
-      wait(LEASE_IDLE_MS - 1);
-      room.presence("s1", { ...EMPTY, caret: { id: "note0001", start: 3, end: 3 } });
-      wait(LEASE_IDLE_MS - 1);
-      expect(room.lease("s2", "note0001", true)[0]!.target).toEqual({ to: "one", sid: "s2" });
-      expect(room.leases.get("note0001")).toBe("s1");
-    });
-
-    it("restores leases after a wake, with how long the typist had been quiet", () => {
-      let now = 50_000;
-      const before = setup();
-      before.apply("s1", "a", note("note0001"));
-      const room = new Room(meta, before.widgets.values(), () => now);
-      // Last typed 10 s before the box hibernated; a deleted note is skipped.
-      room.restore(
-        { sid: "s1", ...hello("Mochi"), role: "editor", presence: EMPTY },
-        { note0001: now - 10_000, gone0001: now },
-      );
-      expect(room.leasesOf("s1")).toEqual({ note0001: now - 10_000 });
-      room.join("s2", hello("Nori"));
-      now += LEASE_IDLE_MS - 10_001;
-      expect(room.lease("s2", "note0001", true)[0]!.target).toEqual({ to: "one", sid: "s2" });
-      now += 1;
-      expect(room.leases.get("note0001")).toBe("s1");
-      expect(room.lease("s2", "note0001", true)[0]!.target).toEqual({ to: "all" });
-    });
-  });
-
-  it("releases leases when the holder leaves", () => {
-    const room = setup();
-    room.apply("s1", "a", note("note0001"));
-    room.lease("s1", "note0001", true);
-    const out = room.leave("s1");
-    expect(msgs(out, "lease")[0]!.msg).toEqual({ t: "lease", id: "note0001", holder: null });
-    expect(room.leases.size).toBe(0);
+    // Your own caret doesn't stop you.
+    expect(room.apply("s2", "d", { type: "delete", id: "note0001" }).out[0]!.msg.t).toBe("applied");
   });
 });
 
 describe("presence", () => {
-  it("relays to others and drops a caret in a note you don't hold", () => {
+  it("relays to others, keeping a caret only inside a note", () => {
     const room = setup();
     room.apply("s1", "a", note("note0001"));
+    const kept = room.presence("s2", { ...EMPTY, caret: { id: "note0001", start: 0, end: 0 } });
+    expect(kept[0]!.msg.t === "presence" && kept[0]!.msg.presence.caret).toEqual({
+      id: "note0001",
+      start: 0,
+      end: 0,
+    });
     const out = room.presence("s2", {
       cursor: { x: 1.5, y: 2.25 },
       action: "typing",
       drag: null,
-      caret: { id: "note0001", start: 0, end: 0 },
+      caret: { id: "gone0001", start: 0, end: 0 },
     });
     expect(out[0]!.target).toEqual({ to: "others", except: "s2" });
     expect(out[0]!.msg.t === "presence" && out[0]!.msg.presence.caret).toBeNull();
@@ -345,7 +368,7 @@ describe("ownership", () => {
     room.join("gst", hello("Nori"));
     room.apply("own", "c1", note("aaaaaaaa", 0, 0));
     room.apply("own", "c2", note("bbbbbbbb", 3, 0));
-    room.lease("gst", "aaaaaaaa", true);
+    room.presence("gst", { ...EMPTY, caret: { id: "aaaaaaaa", start: 0, end: 0 } });
 
     const denied = room.clear("gst", "x1");
     expect(denied.out[0]!.msg).toMatchObject({ t: "rejected", opId: "x1", code: "forbidden" });
@@ -358,7 +381,6 @@ describe("ownership", () => {
       target: { to: "all" },
       msg: { opId: "x2", upsert: [], remove: ["aaaaaaaa", "bbbbbbbb"] },
     });
-    expect(msgs(out, "lease")[0]!.msg).toEqual({ t: "lease", id: "aaaaaaaa", holder: null });
   });
 
   it("credits the owner by their current name and color", () => {
@@ -403,15 +425,16 @@ describe("roles and access", () => {
     expect(join.t === "join" && join.peer.clientId).toBe("");
   });
 
-  it("viewers can't change notes or take a note to type in", () => {
+  it("viewers can't change notes or type in them, and show no caret", () => {
     const room = table();
     room.apply("own", "a", note("note0001"));
     room.setRole("own", "r", "gst", "viewer");
     expect(room.apply("gst", "b", note("note0002")).out[0]!.msg).toMatchObject({ code: "forbidden" });
-    expect(room.lease("gst", "note0001", true)).toEqual([
-      { target: { to: "one", sid: "gst" }, msg: { t: "lease", id: "note0001", holder: null } },
-    ]);
-    expect(room.leases.size).toBe(0);
+    expect(
+      room.apply("gst", "c", { type: "text", id: "note0001", base: 0, ops: ["x"] }).out[0]!.msg,
+    ).toMatchObject({ code: "forbidden" });
+    const out = room.presence("gst", { ...EMPTY, caret: { id: "note0001", start: 0, end: 0 } });
+    expect(out[0]!.msg.t === "presence" && out[0]!.msg.presence.caret).toBeNull();
   });
 
   it("only the owner sets roles, and a role sticks to the device on rejoin", () => {
@@ -421,14 +444,6 @@ describe("roles and access", () => {
     room.leave("gst");
     room.join("gst2", { clientId: "clientguest1", name: "Nori", hue: 200 });
     expect(room.peers.get("gst2")!.role).toBe("viewer");
-  });
-
-  it("making someone a viewer ends their typing", () => {
-    const room = table();
-    room.apply("own", "a", note("note0001"));
-    room.lease("gst", "note0001", true);
-    const out = room.setRole("own", "r", "gst", "viewer");
-    expect(out.some((o) => o.msg.t === "lease" && o.msg.holder === null)).toBe(true);
   });
 
   it("new visitors get the default role; only the owner changes it", () => {
@@ -536,7 +551,7 @@ describe("to-do lists", () => {
     room.apply("s1", "n", note("note0001", 6, 0));
     room.apply("s2", "t", { type: "patch", id: "todo0001", title: "  Groceries " });
     expect(list(room).title).toBe("Groceries");
-    expect(room.apply("s1", "x", { type: "patch", id: "todo0001", text: "hi" }).out[0]!.msg).toMatchObject({
+    expect(room.apply("s1", "x", { type: "patch", id: "todo0001", size: "l" }).out[0]!.msg).toMatchObject({
       code: "invalid",
     });
     expect(room.apply("s1", "y", { type: "patch", id: "note0001", title: "hi" }).out[0]!.msg).toMatchObject({
@@ -544,8 +559,6 @@ describe("to-do lists", () => {
     });
     const noList = room.apply("s1", "z", item("note0001", { do: "clearDone" }));
     expect(noList.out[0]!.msg).toMatchObject({ code: "invalid" });
-    // Lists aren't typed in under a lease.
-    expect(room.lease("s1", "todo0001", true)).toEqual([]);
   });
 
   it("viewers can't change a list", () => {

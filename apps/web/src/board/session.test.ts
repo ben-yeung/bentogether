@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRoot } from "solid-js";
+import { createRoot, flush } from "solid-js";
 import type { ClientMessage, ServerMessage, Widget } from "@bentogether/shared";
 import { openSession, type BoxSession } from "./session";
 
@@ -75,7 +75,6 @@ async function connect(widgets: Widget[] = []): Promise<[BoxSession, FakeSocket]
       options: { cursors: true, autoPack: true },
     },
     widgets,
-    leases: {},
     rev: 0,
     now: Date.now(),
   });
@@ -218,42 +217,181 @@ describe("presence", () => {
 });
 
 describe("typing in a note", () => {
-  it("lets go of a note when the bento refuses your text, so the edit ends", async () => {
-    const note: Widget = {
-      id: "note000001",
-      kind: "note",
-      x: 0,
-      y: 0,
-      w: 3,
-      h: 3,
-      text: "",
-      color: "ume",
-      size: "m",
-      createdBy: "Mochi",
-      createdAt: 1,
-      updatedAt: 1,
-    };
-    const [s, ws] = await connect([note]);
-    ws.deliver({ t: "lease", id: note.id, holder: peer.sid });
-    await tick();
-    expect(s.leases[note.id]).toBe(peer.sid);
-
-    s.typeText(note.id, "hello");
-    const sent = ws.ops().at(-1)!;
-    ws.deliver({ t: "rejected", opId: sent.opId, code: "leased", message: "Someone else is typing here." });
-    await tick();
-    expect(s.leases[note.id]).toBeUndefined();
+  const note = (text = "", tv = 0): Widget => ({
+    id: "note000001",
+    kind: "note",
+    x: 0,
+    y: 0,
+    w: 3,
+    h: 3,
+    text,
+    tv,
+    color: "ume",
+    size: "m",
+    createdBy: "Mochi",
+    createdAt: 1,
+    updatedAt: 1,
+  });
+  const id = "note000001";
+  type TextOp = Extract<ClientMessage, { t: "op" }>["op"] & { type: "text" };
+  const texts = (ws: FakeSocket) =>
+    ws.ops().flatMap((m) => (m.op.type === "text" ? [{ opId: m.opId, ...(m.op as TextOp) }] : []));
+  const welcome = (widgets: Widget[]): ServerMessage => ({
+    t: "welcome",
+    self: { ...peer, sid: "me00000002", presence },
+    peers: [],
+    box: { id: "box0000001", title: "Lunch", createdAt: 0, options: { cursors: true, autoPack: true } },
+    widgets,
+    rev: 0,
+    now: Date.now(),
   });
 
-  it("keeps the note when its text is confirmed", async () => {
-    const [s, ws] = await connect();
-    ws.deliver({ t: "lease", id: "note000001", holder: peer.sid });
-    s.typeText("note000001", "hello");
-    const sent = ws.ops().at(-1)!;
-    ws.deliver({ t: "applied", rev: 1, by: peer.sid, opId: sent.opId, upsert: [], remove: [] });
-    // A refusal for an op already confirmed (or not ours) changes nothing.
-    ws.deliver({ t: "rejected", opId: sent.opId, code: "leased", message: "" });
-    await tick();
-    expect(s.leases["note000001"]).toBe(peer.sid);
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("keeps one edit in flight and sends what you type meanwhile once it's confirmed", async () => {
+    const [s, ws] = await connect([note("hi", 4)]);
+    s.editText(id, [2, "!"]);
+    flush();
+    expect(s.text(id)).toBe("hi!");
+    vi.advanceTimersByTime(60);
+    expect(texts(ws)).toEqual([{ opId: expect.any(String), type: "text", id, base: 4, ops: [2, "!"] }]);
+
+    s.editText(id, [3, "?"]);
+    s.editText(id, [4, "!"]);
+    vi.advanceTimersByTime(200);
+    expect(texts(ws)).toHaveLength(1);
+
+    const first = texts(ws)[0]!;
+    ws.deliver({ t: "text", id, v: 5, ops: [2, "!"], by: peer.sid, opId: first.opId });
+    vi.advanceTimersByTime(60);
+    expect(texts(ws)[1]).toMatchObject({ base: 5, ops: [3, "?!"] });
+    flush();
+    expect(s.text(id)).toBe("hi!?!");
+  });
+
+  it("merges someone else's edit with your unconfirmed typing", async () => {
+    const [s, ws] = await connect([note("hello", 1)]);
+    const seen: Array<unknown> = [];
+    s.watchText(id, (op) => seen.push(op));
+    s.editText(id, [5, "!"]);
+    vi.advanceTimersByTime(60);
+    // Bob put "Oh, " at the start before ours reached the server.
+    ws.deliver({ t: "text", id, v: 2, ops: ["Oh, "], by: "bob0000001", opId: "bob1" });
+    flush();
+    expect(s.text(id)).toBe("Oh, hello!");
+    flush();
+    expect(seen).toEqual([["Oh, "]]);
+    // The server moved ours past Bob's.
+    ws.deliver({ t: "text", id, v: 3, ops: [9, "!"], by: peer.sid, opId: texts(ws)[0]!.opId });
+    flush();
+    expect(s.server.widgets[id]).toMatchObject({ text: "Oh, hello!", tv: 3 });
+    flush();
+    expect(s.text(id)).toBe("Oh, hello!");
+  });
+
+  it("keeps your words when the bento refuses them, and shows the saved text again", async () => {
+    const [s, ws] = await connect([note("full", 1)]);
+    const seen: Array<unknown> = [];
+    s.watchText(id, (op) => seen.push(op));
+    s.editText(id, [4, " up"]);
+    vi.advanceTimersByTime(60);
+    ws.deliver({ t: "rejected", opId: texts(ws)[0]!.opId, code: "limit", message: "This note is full." });
+    flush();
+    expect(s.text(id)).toBe("full");
+    flush();
+    expect(s.lostText(id)).toBe("full up");
+    flush();
+    expect(seen).toEqual([null]);
+    s.dismissLost(id);
+    flush();
+    expect(s.lostText(id)).toBeNull();
+  });
+
+  it("moves other people's carets along with the text", async () => {
+    const [s, ws] = await connect([note("hello", 1)]);
+    ws.deliver({ t: "join", peer: { ...peer, sid: "bob0000001", name: "Bob", presence } });
+    ws.deliver({
+      t: "presence",
+      sid: "bob0000001",
+      presence: { ...presence, caret: { id, start: 5, end: 5 } },
+    });
+    flush();
+    expect(s.typists(id).map((p) => p.name)).toEqual(["Bob"]);
+    ws.deliver({ t: "text", id, v: 2, ops: ["Oh, "], by: "cat0000001", opId: "cat1" });
+    flush();
+    expect(s.peers["bob0000001"]!.presence.caret).toMatchObject({ start: 9, end: 9 });
+  });
+
+  describe("after losing the connection", () => {
+    async function dropAndReturn(ws: FakeSocket) {
+      ws.readyState = 3;
+      ws.onclose?.({ code: 1006, reason: "" });
+      dispatchEvent(new Event("online"));
+      const next = FakeSocket.last;
+      expect(next).not.toBe(ws);
+      next.open();
+      return next;
+    }
+
+    it("sends unanswered typing again, catches up, and never doubles it", async () => {
+      const [s, ws] = await connect([note("hi", 1)]);
+      s.editText(id, [2, "!"]);
+      vi.advanceTimersByTime(60);
+      const lostAck = texts(ws)[0]!;
+
+      const next = await dropAndReturn(ws);
+      // Meanwhile ours was applied (v2) and Bob added " yo" (v3).
+      next.deliver(welcome([note("hi! yo", 3)]));
+      // You keep typing while it catches you up.
+      s.editText(id, [3, "?"]);
+      expect(texts(next)).toEqual([{ ...lostAck, base: 1, resend: true }]);
+      flush();
+      expect(s.text(id)).toBe("hi!?");
+
+      // A newer edit from Cat overtakes the catch-up.
+      next.deliver({ t: "text", id, v: 4, ops: ["> "], by: "cat0000001", opId: "cat1" });
+      next.deliver({ t: "text", id, v: 2, ops: [2, "!"], by: "me00000001", opId: lostAck.opId });
+      next.deliver({ t: "text", id, v: 3, ops: [3, " yo"], by: "bob0000001", opId: "bob1" });
+      flush();
+      expect(s.server.widgets[id]).toMatchObject({ text: "> hi! yo", tv: 4 });
+      flush();
+      // Bob's " yo" and your "?" went at the same spot; his was applied first.
+      expect(s.text(id)).toBe("> hi! yo?");
+      vi.advanceTimersByTime(60);
+      expect(texts(next).at(-1)).toMatchObject({ base: 4, ops: [8, "?"] });
+    });
+
+    it("keeps your words when the bento can't catch you up", async () => {
+      const [s, ws] = await connect([note("hi", 1)]);
+      s.editText(id, [2, " there"]);
+      vi.advanceTimersByTime(60);
+      const next = await dropAndReturn(ws);
+      next.deliver(welcome([note("all new", 9)]));
+      next.deliver({ t: "rejected", opId: texts(next)[0]!.opId, code: "stale", message: "" });
+      flush();
+      expect(s.text(id)).toBe("all new");
+      flush();
+      expect(s.server.widgets[id]).toMatchObject({ tv: 9 });
+      flush();
+      expect(s.lostText(id)).toBe("hi there");
+    });
+
+    it("drops typing for a note deleted while you were away", async () => {
+      const [s, ws] = await connect([note("hi", 1)]);
+      s.editText(id, [2, "!"]);
+      vi.advanceTimersByTime(60);
+      const next = await dropAndReturn(ws);
+      next.deliver(welcome([]));
+      expect(texts(next)).toHaveLength(0);
+      flush();
+      expect(s.text(id)).toBe("");
+      flush();
+      expect(s.lostText(id)).toBeNull();
+    });
   });
 });

@@ -277,10 +277,7 @@ export function Board(props: {
             const rect = createMemo(() => layout().get(id) ?? s().rect(id)!, { equals: sameRect });
             const mine = createMemo(() => (local()?.id === id ? local() : null));
             const theirs = createMemo(() => (remoteDrag()?.id === id ? remoteDrag() : null));
-            const typistHue = createMemo(() => {
-              const sid = s().leases[id];
-              return sid && sid !== s().server.sid ? (s().peers[sid]?.hue ?? null) : null;
-            });
+            const typistHue = createMemo(() => s().typists(id)[0]?.hue ?? null);
             const shared: WidgetProps = {
               id,
               get session() {

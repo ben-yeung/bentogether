@@ -110,7 +110,7 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
 
 - **Where:** `cursors/CursorTag.tsx` (typewriter), `cursors/Cursors.tsx`
   (remote cursor easing), `pages/BoxPage.tsx` (document title), `board/widgets/note/Note.tsx`
-  (focus, lease loss)
+  (focus, refused typing)
 - **Primitive:** `createEffect(compute, apply)`
 - **Shape:** compute reads reactive values and returns plain data; apply
   does the DOM work and returns its cleanup (the typewriter's timer is
@@ -250,24 +250,35 @@ Each entry: **where**, **which primitive**, **why**, and any **finding**.
   time into a signal tripped `EFFECT_RELAY_TEAR`; ticking a counter and
   reading the clock in the derivation did not.
 
-### 16. Losing a note: compute returns the snapshot, apply acts on it
+### 16. Typing state lives outside the store
 
-- **Where:** `board/widgets/note/Note.tsx` (lease loss), `board/session.ts`
-  (`textOps`)
-- **Primitives:** split `createEffect(compute, apply)`, plain signals
-- **Shape:** the compute returns `null` while you hold the note, and once
-  you don't, it returns a plain snapshot: `{ draft, saved, by }` (your
-  text, the bento's saved text, who has it now). Apply ends the edit and
-  keeps `draft` as unsaved if it differs from `saved`. The draft and the
-  store are read in compute, never in apply, for the same reason as entry 6
-  (`STRICT_READ_UNTRACKED`).
-- **Why the ordering is safe:** the socket is ordered. Any text the server
-  accepted arrives as `applied` before the `lease` message that hands the
-  note to someone else, so at that moment `saved` already includes
-  everything that was kept.
-- **Rule we follow:** "holding it" is `holder === me`, not "someone else
-  holds it". A cleared lease (a reconnect, a refused keystroke) ends the
-  edit too.
+- **Where:** `board/session.ts` (typing), `board/widgets/note/Note.tsx`
+- **Primitives:** plain `Map`s mirrored into stores, `<For keyed={false}>`
+- **Shape:** each note you're typing in has a plain object holding its
+  confirmed text and version, the text you see, the edit in flight and the
+  buffer (see `packages/shared/src/text.ts`). Every change is computed
+  there first and then copied into the `server` and `drafts` stores, which
+  exist only for drawing.
+- **Finding:** keeping this state in the store broke merging. Edits chain
+  within one task (catching up after a reconnect applies several in a
+  row), and in 2.0 a store read right after a write still returns the old
+  value until the batch flushes (entry 2). The first version read the text
+  it had just written and applied the next edit to stale text.
+- **The editor is imperative:** the textarea's value isn't bound. Binding
+  it would reset the caret on every remote edit. Instead `watchText` hands
+  the open editor each remote edit, which it applies with the caret and
+  selection moved along with the text, and holds back during IME
+  composition.
+- **Keying:** the caret overlay splits the text into pieces that are new
+  objects on every keystroke. With the default keying, `<For>` rebuilt every
+  row (dev warning `UNSTABLE_LIST_IDENTITY`). `keyed={false}` reuses rows by
+  position, and the row has to read `piece()` inside JSX: reading it once
+  at the top of the row freezes the row (eslint `solid/reactivity` catches
+  this).
+- **Finding:** clearing `peers` on reconnect made your own role read as
+  "viewer" until the welcome came back, which made the note read-only and
+  closed the editor mid-sentence. You now stay in `peers` while the line is
+  down.
 
 ---
 
