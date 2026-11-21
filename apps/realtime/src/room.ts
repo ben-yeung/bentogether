@@ -512,6 +512,14 @@ export class Room {
   }
 
   /**
+   * Whether `sid` may delete the bento: null if so, else the rejection to
+   * send. Deleting itself is the host's job (it wipes storage).
+   */
+  mayDelete(sid: string, opId: string): Outgoing[] | null {
+    return this.ownerOnly(sid, opId, "delete it");
+  }
+
+  /**
    * Fills a new box with the base template ("starter" option): one of every
    * widget, as an example. Returns the ids to save.
    */

@@ -5,7 +5,8 @@ import { personVars } from "../lib/identity";
 import { viewingLabel } from "../lib/format";
 import type { BoxSession } from "./session";
 import { ShareDialog } from "./ShareDialog";
-import { ClearBentoDialog, SettingsDialog } from "./SettingsDialog";
+import { navigate } from "../lib/router";
+import { ClearBentoDialog, DeleteBentoDialog, SettingsDialog } from "./SettingsDialog";
 import styles from "./Toolbar.module.css";
 
 const STATUS_COPY = {
@@ -27,6 +28,7 @@ export function Toolbar(props: {
   const [sharing, setSharing] = createSignal(false);
   const [settings, setSettings] = createSignal(false);
   const [clearing, setClearing] = createSignal(false);
+  const [deleting, setDeleting] = createSignal(false);
 
   /*
    * When the bar runs short of room, the "viewing the bento" label goes
@@ -201,6 +203,17 @@ export function Toolbar(props: {
           setSettings(false);
           setClearing(true);
         }}
+        onDelete={() => {
+          setSettings(false);
+          setDeleting(true);
+        }}
+        toast={props.toast}
+      />
+      <DeleteBentoDialog
+        open={deleting()}
+        onClose={() => setDeleting(false)}
+        session={s()}
+        onDeleted={() => navigate("/")}
         toast={props.toast}
       />
       <ClearBentoDialog

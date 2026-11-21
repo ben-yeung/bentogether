@@ -208,7 +208,7 @@ function BoxLink(props: {
           navigate(`/b/${props.id}`);
         }}
       >
-        <Mark size={16} />
+        <Mark size={32} />
         <span class={styles.boxText}>
           <span class={styles.boxTitle}>{props.title}</span>
           <span class={styles.boxMeta}>

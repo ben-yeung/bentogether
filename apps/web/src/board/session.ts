@@ -49,6 +49,8 @@ import {
 import { Socket, type SocketStatus } from "../lib/socket";
 import { socketUrl } from "../lib/config";
 import { BoxNotFound, Outdated, OverCapacity, Unreachable } from "../lib/api";
+import { forgetOwnerToken } from "../lib/owner";
+import { forgetBox } from "../lib/recent";
 import type { LocalIdentity } from "../lib/identity";
 
 const OP_TIMEOUT_MS = 8000;
@@ -115,6 +117,8 @@ type ServerState = {
   status: SocketStatus;
   /** Why the server ended a live session, when it says (e.g. out of capacity). */
   notice: string | null;
+  /** The creator deleted the bento while you were in it. */
+  deleted: boolean;
 };
 
 /**
@@ -202,6 +206,7 @@ function createSession(boxId: string, identity: () => Hello) {
     sid: "",
     status: "connecting",
     notice: null,
+    deleted: false,
   });
   const [overlay, setOverlay] = createOptimisticStore<Overlay>({
     rects: {},
@@ -428,6 +433,16 @@ function createSession(boxId: string, identity: () => Hello) {
       setServer((d) => {
         d.status = status;
       });
+      // Deleted: your own delete request succeeded; everyone else is told.
+      if (status === "closed" && welcomed && close?.code === CLOSE.deleted) {
+        if (deleteOpId) settleOp(deleteOpId);
+        forgetBox(boxId);
+        forgetOwnerToken(boxId);
+        setServer((d) => {
+          d.deleted = true;
+          if (!deleteOpId) d.notice = "The creator deleted this bento.";
+        });
+      }
       // Typing isn't failed: it waits, and goes again once the bento's back.
       if (status !== "open") failAllInflight("Lost the connection. That change wasn't saved.");
       // Everyone else is shown again by the next welcome. You stay, so your
@@ -728,6 +743,19 @@ function createSession(boxId: string, identity: () => Hello) {
   }
 
   /** Sends a request the server answers with `meta`/`peer` (or `rejected`) carrying its opId. */
+  /** Set while your delete request is out; the server answers by closing. */
+  let deleteOpId: string | null = null;
+
+  /** Deletes the bento for everyone. Resolves once the server has. */
+  function deleteBento(): Promise<void> {
+    return request((opId) => {
+      deleteOpId = opId;
+      return { t: "delete", opId };
+    }).finally(() => {
+      deleteOpId = null;
+    });
+  }
+
   function request(build: (opId: string) => ClientMessage): Promise<void> {
     const opId = randomId(10);
     return new Promise<void>((resolve, reject) => {
@@ -1128,6 +1156,7 @@ function createSession(boxId: string, identity: () => Hello) {
     setAccess,
     setOptions,
     clearBento,
+    deleteBento,
     setRole,
     remove,
     // live

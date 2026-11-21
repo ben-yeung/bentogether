@@ -248,21 +248,29 @@
   display: grid;
   align-content: start;
   gap: 0.2rem;
-  margin: 0 -0.6rem;
-  padding: 0;
+  /* Reach further right than left so the scrollbar sits out in the column's
+     padding, clear of the dates, while the rows stay where they were. */
+  margin: 0 -1.1rem 0 -0.6rem;
+  padding: 0 0.5rem 0 0;
   list-style: none;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  /* A thin scrollbar that's always there when needed, flush with the edge.
-     Chromium/Safari: ::-webkit-scrollbar forces a classic (non-overlay) bar,
-     so it doesn't vanish on macOS. Firefox gets the standard properties. */
+  /* A thin scrollbar that only shows while the pointer is over the list (or
+     focus is inside it). Chromium/Safari: ::-webkit-scrollbar forces a
+     classic bar so we control when it shows. Firefox gets the standard
+     properties. The gutter is stable so rows don't shift when it appears. */
   scrollbar-gutter: stable;
 }
 
 @supports not selector(::-webkit-scrollbar) {
   .boxList {
     scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  .boxList:hover,
+  .boxList:focus-within {
     scrollbar-color: var(--bamboo-strong) transparent;
   }
 }
@@ -277,6 +285,11 @@
 
 .boxList::-webkit-scrollbar-thumb {
   border-radius: 3px;
+  background: transparent;
+}
+
+.boxList:hover::-webkit-scrollbar-thumb,
+.boxList:focus-within::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--lacquer) 22%, transparent);
 }
 

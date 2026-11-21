@@ -434,6 +434,17 @@ describe("ownership", () => {
     });
   });
 
+  it("lets only the owner delete the bento", () => {
+    const room = new Room(meta);
+    room.join("own", hello("Mochi"), true);
+    room.join("gst", hello("Nori"));
+    expect(room.mayDelete("gst", "d1")?.[0]).toMatchObject({
+      target: { to: "one", sid: "gst" },
+      msg: { t: "rejected", opId: "d1", code: "forbidden" },
+    });
+    expect(room.mayDelete("own", "d2")).toBeNull();
+  });
+
   it("credits the owner by their current name and color", () => {
     const room = new Room(meta);
     const out = room.join("own", hello("Mochi", 30), true);
