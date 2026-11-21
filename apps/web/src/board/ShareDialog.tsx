@@ -97,18 +97,35 @@ function ShareBody(props: {
         </Show>
       </header>
 
-      <div class={styles.linkRow}>
-        <input
-          class={["field", styles.linkInput]}
-          value={link()}
-          readonly
-          aria-label="Link to this bento"
-          onFocus={(e) => e.currentTarget.select()}
-        />
-        <button type="button" class="btn btn-primary" onClick={() => void copy()} autofocus>
-          {copied() ? "Copied" : "Copy link"}
-        </button>
-      </div>
+      {/* The whole row copies: the link text and the icon are one button. */}
+      <button
+        type="button"
+        class={styles.linkRow}
+        onClick={() => void copy()}
+        aria-label={copied() ? "Link copied" : `Copy link: ${link()}`}
+        title={copied() ? "Copied" : "Copy link"}
+        autofocus
+      >
+        <span class={styles.linkText}>{link()}</span>
+        <span class={["icon-btn", styles.copyIcon]} data-copied={copied() || undefined} aria-hidden="true">
+          <Show
+            when={copied()}
+            fallback={
+              <svg viewBox="0 0 20 20">
+                <rect x="7" y="7" width="9.5" height="9.5" rx="2" />
+                <path d="M13 7V5.5A2 2 0 0 0 11 3.5H5.5a2 2 0 0 0-2 2V11a2 2 0 0 0 2 2H7" />
+              </svg>
+            }
+          >
+            <svg viewBox="0 0 20 20">
+              <path d="M4.5 10.5 8 14l7.5-8" />
+            </svg>
+          </Show>
+        </span>
+      </button>
+      <span class="visually-hidden" role="status">
+        {copied() ? "Link copied" : ""}
+      </span>
 
       <section class={styles.section} aria-labelledby="share-people">
         <h3 id="share-people" class={styles.sectionLabel}>
@@ -148,7 +165,7 @@ function ShareBody(props: {
 
       <section class={styles.section} aria-labelledby="share-access">
         <h3 id="share-access" class={styles.sectionLabel}>
-          General access
+          Bento Privacy
         </h3>
         <div class={styles.accessRow}>
           <span class={styles.accessIcon} data-mode={mode()} aria-hidden="true">
@@ -166,23 +183,21 @@ function ShareBody(props: {
               </svg>
             </Show>
           </span>
-          <div class={styles.accessText}>
-            <Select
-              class={["field-select", styles.selectPlain]}
-              label="Who can join"
-              value={mode()}
-              options={MODE_OPTIONS}
-              disabled={!owner()}
-              onChange={chooseMode}
-            />
-            <span class={styles.accessHint}>
-              {mode() === "password"
-                ? s().access().mode === "password"
-                  ? "A password is required for new visitors."
-                  : "Set a password to turn this on."
-                : "Anyone with the link can join."}
-            </span>
-          </div>
+          <Select
+            class={["field-select", styles.selectPlain]}
+            label="Who can join"
+            value={mode()}
+            options={MODE_OPTIONS}
+            disabled={!owner()}
+            onChange={chooseMode}
+          />
+          <span class={styles.accessStatus}>
+            {mode() === "password"
+              ? s().access().mode === "password"
+                ? "A password is required for new visitors."
+                : "Set a password to turn this on."
+              : "Anyone with the link can join."}
+          </span>
         </div>
 
         <Show when={owner() && mode() === "password"}>
@@ -207,7 +222,7 @@ function ShareBody(props: {
         <div class={styles.defaultRow}>
           <span>
             New visitors
-            <span class={styles.accessHint}>What people get when they first join.</span>
+            <span class={styles.accessHint}>Default permissions assigned when they join.</span>
           </span>
           <Select
             class={["field-select", styles.select]}
