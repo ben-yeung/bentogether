@@ -29,6 +29,13 @@ export const DEFAULT_TEXT_SIZE: TextSize = "m";
 export const SYSTEM_AUTHOR = "benTogether";
 export const NAME_MAX = 24;
 
+/**
+ * Who made a widget, as their voter key (see voterKey): it decides who may
+ * delete it without sending anyone's device id. Missing on widgets the box
+ * made itself and ones saved before it existed; only the owner deletes those.
+ */
+const CreatorKey = v.optional(v.pipe(v.string(), v.regex(/^[a-z0-9]{4,16}$/)));
+
 const Int = (min: number, max: number) => v.pipe(v.number(), v.integer(), v.minValue(min), v.maxValue(max));
 const Coord = (max: number) => v.pipe(v.number(), v.finite(), v.minValue(-1), v.maxValue(max + 1));
 
@@ -55,6 +62,7 @@ export const NoteWidgetSchema = v.object({
   /** Optional on the wire so notes saved before sizes existed still parse. */
   size: v.optional(TextSizeSchema),
   createdBy: v.string(),
+  creatorKey: CreatorKey,
   createdAt: v.number(),
   updatedAt: v.number(),
 });
@@ -90,6 +98,7 @@ export const TodoWidgetSchema = v.object({
   color: NoteColorSchema,
   items: v.array(TodoItemSchema),
   createdBy: v.string(),
+  creatorKey: CreatorKey,
   createdAt: v.number(),
   updatedAt: v.number(),
 });
@@ -150,6 +159,7 @@ export const BudgetWidgetSchema = v.object({
   amount: v.number(),
   log: v.array(BudgetLogSchema),
   createdBy: v.string(),
+  creatorKey: CreatorKey,
   createdAt: v.number(),
   updatedAt: v.number(),
 });
@@ -160,7 +170,7 @@ export type BudgetWidget = v.InferOutput<typeof BudgetWidgetSchema>;
  * change them: a `change` op checked by `applyWidgetChange` (changes.ts),
  * which the server and the sender's own screen both run.
  */
-const Stamp = { createdBy: v.string(), createdAt: v.number(), updatedAt: v.number() };
+const Stamp = { createdBy: v.string(), creatorKey: CreatorKey, createdAt: v.number(), updatedAt: v.number() };
 const Frame = { id: Id, ...RectSchema.entries, title: WidgetTitle, color: NoteColorSchema };
 
 /**
@@ -582,6 +592,16 @@ export const ASSIGNABLE_ROLES = ["editor", "viewer"] as const;
 export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
 export type Role = "owner" | AssignableRole;
 export const AssignableRoleSchema = v.picklist(ASSIGNABLE_ROLES);
+
+/**
+ * Who may delete a widget: the owner deletes anything; editors only the
+ * ones they made (matched by voter key). Viewers delete nothing.
+ */
+export function mayDelete(widget: { creatorKey?: string | undefined }, role: Role, voter: string): boolean {
+  if (role === "owner") return true;
+  if (role === "viewer") return false;
+  return widget.creatorKey !== undefined && widget.creatorKey === voter;
+}
 
 /** Who can get in, and what newcomers can do. The password itself is never here. */
 export type Access = { mode: "link" | "password"; defaultRole: AssignableRole };

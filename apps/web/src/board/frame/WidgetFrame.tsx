@@ -1,4 +1,4 @@
-import { Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import type { NoteColor, Rect, WidgetKind } from "@bentogether/shared";
 import { personColor } from "../../lib/identity";
@@ -53,6 +53,16 @@ export function WidgetFrame(
 ) {
   const s = () => props.session;
   const fail = (err: Error) => props.onError(err.message);
+  /** Delete asks first: the widget and everything in it goes for everyone. */
+  const [confirming, setConfirming] = createSignal(false);
+  /** The owner deletes anything; editors only the widgets they added. */
+  const canDelete = () => !props.readOnly && s().canDelete(props.id);
+  let frame!: HTMLElement;
+
+  function cancelDelete() {
+    setConfirming(false);
+    frame.focus({ preventScroll: true });
+  }
 
   function onKeyDown(e: KeyboardEvent & { currentTarget: HTMLElement }) {
     if (props.readOnly) return;
@@ -81,13 +91,14 @@ export function WidgetFrame(
       case "Delete":
       case "Backspace":
         e.preventDefault();
-        s().remove(props.id).catch(fail);
+        if (canDelete()) setConfirming(true);
         return;
     }
   }
 
   return (
     <article
+      ref={frame}
       data-widget={props.id}
       data-kind={props.kind}
       // Notes keep their own hook, used by tests and the cursor.
@@ -99,6 +110,7 @@ export function WidgetFrame(
       data-carried={props.carry !== null}
       data-ringed={props.ringHue !== null}
       data-readonly={props.readOnly}
+      data-confirming={confirming()}
       tabindex="0"
       aria-label={props.label}
       style={{
@@ -122,12 +134,13 @@ export function WidgetFrame(
       }}
       onKeyDown={onKeyDown}
     >
-      <Show when={!props.readOnly}>
+      <Show when={canDelete()}>
         <button
           type="button"
           class={["icon-btn", styles.remove]}
           aria-label={props.deleteLabel}
-          onClick={() => s().remove(props.id).catch(fail)}
+          aria-haspopup="dialog"
+          onClick={() => setConfirming(true)}
         >
           <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
@@ -136,6 +149,53 @@ export function WidgetFrame(
       </Show>
 
       {props.children}
+
+      <Show when={confirming() && canDelete()}>
+        <div
+          class={styles.confirm}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby={`${props.id}-confirm`}
+          data-nodrag
+          onClick={(e) => {
+            if (e.target === e.currentTarget) cancelDelete();
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Escape") {
+              e.preventDefault();
+              cancelDelete();
+            }
+          }}
+        >
+          <div class={styles.confirmCard}>
+            <p id={`${props.id}-confirm`} class={styles.confirmTitle}>
+              {props.deleteLabel}?
+            </p>
+            <p class={styles.confirmText}>This removes the widget and content for everyone.</p>
+            <div class={styles.confirmActions}>
+              <button
+                type="button"
+                class={styles.confirmCancel}
+                ref={(el) => setTimeout(() => el.focus({ preventScroll: true }), 0)}
+                onClick={cancelDelete}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class={styles.confirmDelete}
+                onClick={() => {
+                  setConfirming(false);
+                  s().remove(props.id).catch(fail);
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      </Show>
 
       <Show when={!props.readOnly}>
         <div

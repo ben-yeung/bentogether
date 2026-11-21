@@ -34,6 +34,17 @@
     outline-color 160ms var(--ease-soft);
 }
 
+/* Menus that open from a widget (dropdowns, the date picker) inherit its
+   dark ink, so in dark mode they'd be dark on dark. Give them the light
+   card instead: widgets stay pastel in dark mode, and so do their menus. */
+.frame :global([popover]) {
+  --rice-raised: #fbf8f2;
+  --rice-sunk: #ece4d4;
+  --bamboo: #ddd1bb;
+  --shu: #c8442f;
+  --shu-ink: #fff7f2;
+}
+
 .frame[data-color="tamago"] {
   --bg: var(--ing-tamago);
 }
@@ -149,6 +160,130 @@
 .remove svg {
   width: 0.85em;
   height: 0.85em;
+}
+
+/* While it asks, the corner tools stay out of the way. */
+.frame[data-confirming] .remove,
+.frame[data-confirming] .resize {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------- delete confirm */
+
+/* Asks before deleting: a veil over the widget with a small card on it.
+   Sized off --u like everything else, and scrolls if the widget is tiny. */
+.confirm {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--u) * 8);
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  backdrop-filter: blur(3px);
+  overflow: auto;
+  scrollbar-width: none;
+  font-family: var(--font-ui);
+  font-size: calc(var(--u) * 14);
+  cursor: auto;
+  animation: veil 140ms var(--ease-soft);
+}
+
+.confirmCard {
+  display: grid;
+  gap: 0.35em;
+  width: min(100%, 17em);
+  padding: 0.9em 1em;
+  border: 1px solid color-mix(in srgb, var(--lacquer) 12%, transparent);
+  border-radius: 0.75em;
+  background: color-mix(in srgb, var(--bg) 55%, #fff);
+  box-shadow: 0 10px 24px -12px color-mix(in srgb, #000 40%, transparent);
+  text-align: center;
+  animation: rise 160ms var(--ease-snap);
+}
+
+.confirmTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1em;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.confirmText {
+  margin: 0;
+  font-size: 0.85em;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--lacquer) 65%, transparent);
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  margin-top: 0.45em;
+}
+
+.confirmCancel,
+.confirmDelete {
+  height: 2em;
+  padding: 0 0.9em;
+  border: 0;
+  border-radius: 0.5em;
+  font: inherit;
+  font-size: 0.9em;
+  font-weight: 650;
+  transition:
+    background-color 120ms var(--ease-soft),
+    filter 120ms var(--ease-soft);
+}
+
+.confirmCancel {
+  background: color-mix(in srgb, var(--lacquer) 8%, transparent);
+  color: var(--lacquer);
+}
+
+.confirmCancel:hover {
+  background: color-mix(in srgb, var(--lacquer) 14%, transparent);
+}
+
+/* Light-mode danger in both themes: the widget stays pastel in dark mode. */
+.confirmDelete {
+  background: #a3302a;
+  color: #fff;
+}
+
+.confirmDelete:hover {
+  filter: brightness(1.1);
+}
+
+.confirmCancel:focus-visible,
+.confirmDelete:focus-visible {
+  outline: 2px solid var(--shu);
+  outline-offset: 2px;
+}
+
+@keyframes veil {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confirm,
+  .confirmCard {
+    animation: none;
+  }
 }
 
 /* ----------------------------------------------------------------- meta */

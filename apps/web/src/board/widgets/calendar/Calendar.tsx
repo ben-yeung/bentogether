@@ -16,6 +16,8 @@ import {
 } from "../../../lib/dates";
 import { WidgetFrame, type WidgetProps } from "../../frame/WidgetFrame";
 import { changer, focusOnMount, Footer, parts, TitleLine, useAuthor, shownName } from "../../frame/parts";
+import { DatePicker } from "../../../ui/DatePicker";
+import { Select, type SelectOption } from "../../../ui/Select";
 import styles from "./Calendar.module.css";
 
 type View = { mode: CalendarMode; anchor: string };
@@ -33,6 +35,21 @@ const MODES: Array<{ mode: CalendarMode; label: string }> = [
   { mode: "week", label: "Week" },
   { mode: "day", label: "Day" },
 ];
+
+/** Times a picker offers: every 15 minutes, plus the current one if it's off the grid. */
+const STEP_MINUTES = 15;
+function timeOptions(current: string): SelectOption<string>[] {
+  const label = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return new Date(2000, 0, 1, h, m).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  };
+  const times = Array.from({ length: (24 * 60) / STEP_MINUTES }, (_, i) => {
+    const min = i * STEP_MINUTES;
+    return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+  });
+  if (!times.includes(current)) times.push(current);
+  return times.sort().map((t) => ({ value: t, label: label(t) }));
+}
 
 /** Which local day an event shows on. */
 const dayOf = (e: CalendarEvent) => e.day ?? dateOfMinute(e.start ?? 0);
@@ -351,12 +368,11 @@ export function Calendar(props: WidgetProps) {
                 }}
               />
               <div class={styles.formRow}>
-                <input
-                  type="date"
+                <DatePicker
                   class={styles.field}
                   value={d().date}
-                  aria-label="Date"
-                  onInput={(e) => e.currentTarget.value && setDraft({ ...d(), date: e.currentTarget.value })}
+                  label="Date"
+                  onChange={(date) => setDraft({ ...d(), date })}
                 />
                 <label class={styles.check}>
                   <input
@@ -369,22 +385,22 @@ export function Calendar(props: WidgetProps) {
               </div>
               <Show when={!d().allDay}>
                 <div class={styles.formRow}>
-                  <input
-                    type="time"
+                  <Select
                     class={styles.field}
+                    listClass={styles.timeList}
                     value={d().start}
-                    aria-label="Starts"
-                    onInput={(e) =>
-                      e.currentTarget.value && setDraft({ ...d(), start: e.currentTarget.value })
-                    }
+                    options={timeOptions(d().start)}
+                    label="Starts"
+                    onChange={(start) => setDraft({ ...d(), start })}
                   />
                   <span class={parts.muted}>to</span>
-                  <input
-                    type="time"
+                  <Select
                     class={styles.field}
+                    listClass={styles.timeList}
                     value={d().end}
-                    aria-label="Ends"
-                    onInput={(e) => e.currentTarget.value && setDraft({ ...d(), end: e.currentTarget.value })}
+                    options={timeOptions(d().end)}
+                    label="Ends"
+                    onChange={(end) => setDraft({ ...d(), end })}
                   />
                 </div>
               </Show>

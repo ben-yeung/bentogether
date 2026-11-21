@@ -269,6 +269,56 @@ describe("box options", () => {
 });
 
 describe("ownership", () => {
+  it("lets an editor delete only the widgets they added; the owner deletes any", () => {
+    const room = new Room(meta);
+    room.join("own", hello("Mochi"), true);
+    room.join("ed1", hello("Nori"));
+    room.join("ed2", hello("Yuzu"));
+    room.apply("own", "c1", note("ownnote1", 0, 0));
+    room.apply("ed1", "c2", note("ed1note1", 3, 0));
+    room.apply("ed1", "c3", note("ed1note2", 6, 0));
+    // The key is a hash, never the device id itself.
+    expect(room.widgets.get("ed1note1")?.creatorKey).toMatch(/^[a-z0-9]+$/);
+    expect(room.widgets.get("ed1note1")?.creatorKey).not.toContain("clientnori");
+
+    const notYours = room.apply("ed2", "d1", { type: "delete", id: "ed1note1" });
+    expect(notYours.out[0]!.msg).toMatchObject({ t: "rejected", opId: "d1", code: "forbidden" });
+    const ownersNote = room.apply("ed1", "d2", { type: "delete", id: "ownnote1" });
+    expect(ownersNote.out[0]!.msg).toMatchObject({ t: "rejected", code: "forbidden" });
+    expect(room.widgets.has("ed1note1") && room.widgets.has("ownnote1")).toBe(true);
+
+    room.apply("ed1", "d3", { type: "delete", id: "ed1note1" });
+    expect(room.widgets.has("ed1note1")).toBe(false);
+    room.apply("own", "d4", { type: "delete", id: "ed1note2" });
+    expect(room.widgets.has("ed1note2")).toBe(false);
+  });
+
+  it("follows the creator across tabs, and leaves older widgets to the owner", () => {
+    const room = new Room(meta, [
+      {
+        id: "oldnote1",
+        kind: "note",
+        x: 0,
+        y: 0,
+        w: 3,
+        h: 3,
+        text: "",
+        color: "tamago",
+        createdBy: "Nori",
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ]);
+    room.join("tab1", hello("Nori"));
+    room.join("tab2", hello("Nori"));
+    room.apply("tab1", "c1", note("newnote1", 3, 0));
+    room.apply("tab2", "d1", { type: "delete", id: "newnote1" });
+    expect(room.widgets.has("newnote1")).toBe(false);
+    // No creator key (made before keys, or by the box itself): owner only.
+    const denied = room.apply("tab1", "d2", { type: "delete", id: "oldnote1" });
+    expect(denied.out[0]!.msg).toMatchObject({ t: "rejected", code: "forbidden" });
+  });
+
   it("lets only the owner rename the bento, and tells everyone", () => {
     const room = new Room(meta);
     room.join("own", hello("Mochi"), true);

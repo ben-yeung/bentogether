@@ -125,8 +125,18 @@ test("calendar: events and the view are shared", async ({ browser }) => {
   const calA = await add(a, "Calendar");
   await calA.getByRole("button", { name: "Add an event" }).click();
   await calA.getByLabel("Event name").fill("Team lunch");
-  await calA.getByLabel("Starts").fill("12:00");
-  await calA.getByLabel("Ends").fill("13:00");
+  // Times are our own dropdowns (ui/Select), not native time inputs.
+  await calA.getByRole("button", { name: "Starts" }).click();
+  await a
+    .getByRole("listbox", { name: "Starts" })
+    .getByRole("option", { name: "12:00 PM", exact: true })
+    .click();
+  await calA.getByRole("button", { name: "Ends" }).click();
+  await a
+    .getByRole("listbox", { name: "Ends" })
+    .getByRole("option", { name: "1:00 PM", exact: true })
+    .click();
+  await expect(calA.getByRole("button", { name: "Starts" })).toHaveText("12:00 PM");
   await calA.getByRole("button", { name: "Save" }).click();
   const calB = b.locator('[data-kind="calendar"]');
   await expect(calB.getByRole("button", { name: /Team lunch/ })).toBeVisible();
@@ -135,6 +145,42 @@ test("calendar: events and the view are shared", async ({ browser }) => {
     "aria-pressed",
     "true",
   );
+});
+
+test("deleting asks first; guests delete only what they added, the creator anything", async ({ browser }) => {
+  const [a, b] = await twoAtTable(browser, "Deletes");
+  const hostPoll = await add(a, "Poll");
+  await expect(b.locator('[data-kind="poll"]')).toHaveCount(1);
+
+  // The guest can't delete the host's widget: no close button, and Delete does nothing.
+  const pollB = b.locator('[data-kind="poll"]');
+  await expect(pollB.getByRole("button", { name: "Delete poll" })).toHaveCount(0);
+  await pollB.focus();
+  await pollB.press("Delete");
+  await expect(b.getByRole("alertdialog")).toHaveCount(0);
+
+  // The guest's own widget: it asks first, and Cancel keeps it.
+  const guestTimer = await add(b, "Timer");
+  await expect(a.locator('[data-kind="timer"]')).toHaveCount(1);
+  await guestTimer.hover();
+  await guestTimer.getByRole("button", { name: "Delete timer" }).click();
+  const ask = guestTimer.getByRole("alertdialog", { name: "Delete timer?" });
+  await expect(ask).toContainText("This removes the widget and content for everyone.");
+  await ask.getByRole("button", { name: "Cancel" }).click();
+  await expect(ask).toBeHidden();
+  await expect(guestTimer).toBeVisible();
+
+  // Confirming deletes it for everyone.
+  await guestTimer.hover();
+  await guestTimer.getByRole("button", { name: "Delete timer" }).click();
+  await ask.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(a.locator('[data-kind="timer"]')).toHaveCount(0);
+
+  // The creator can delete anything, including the host's own poll.
+  await hostPoll.hover();
+  await hostPoll.getByRole("button", { name: "Delete poll" }).click();
+  await hostPoll.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(pollB).toHaveCount(0);
 });
 
 test("notes: a dash starts a bullet list, Enter carries it on, and markdown shows when done", async ({
