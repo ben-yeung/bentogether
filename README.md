@@ -46,7 +46,7 @@ Vercel deployed example (https://bentogether.vercel.app/) runs on a Cloudflare f
 | Timer      | One countdown for everyone, counted on each screen from the server's clock                                                    |
 | Poll       | A question with options; everyone votes, viewers too                                                                          |
 | Ideas      | Pitch ideas and upvote the best (viewers can upvote)                                                                          |
-| Asks       | What each teammate needs, with "new" counts kept on your own device                                                           |
+| Asks       | What each teammate needs and how many are open; a dot marks anything new since you last looked                                |
 | Free times | Paint the half hours you're free over a week, shown in your own time zone                                                     |
 | Calendar   | Month, week and day views; events in each viewer's own time                                                                   |
 

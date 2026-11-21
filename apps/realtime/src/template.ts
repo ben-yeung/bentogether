@@ -1,6 +1,5 @@
 import {
   SYSTEM_AUTHOR,
-  TIMER_DEFAULT_MS,
   bitsToSlots,
   slotAt,
   voterKey,
@@ -121,7 +120,7 @@ export function starterBento(boxId: string, now: number): Widget[] {
       }),
     },
     {
-      ...frame("sbudget", { x: 4, y: 0, w: 3, h: 2 }, "tamago", "Outing budget"),
+      ...frame("sbudget", { x: 4, y: 0, w: 3, h: 2 }, "nori", "Outing budget"),
       kind: "budget",
       currency: "USD",
       amount: 42_000,
@@ -131,11 +130,11 @@ export function starterBento(boxId: string, now: number): Widget[] {
       ],
     },
     {
-      ...frame("stimer", { x: 7, y: 0, w: 2, h: 2 }, "ume", "Quick standup"),
+      ...frame("stimer", { x: 7, y: 0, w: 2, h: 2 }, "ume", "Quick sync"),
       kind: "timer",
-      duration: TIMER_DEFAULT_MS,
+      duration: 15 * 60_000,
       endsAt: null,
-      left: TIMER_DEFAULT_MS,
+      left: 15 * 60_000,
     },
     {
       ...frame("spoll", { x: 9, y: 0, w: 3, h: 4 }, "nori", "Lunch options?"),
@@ -206,9 +205,9 @@ export function starterBento(boxId: string, now: number): Widget[] {
       })),
     },
     {
-      ...frame("stips", { x: 9, y: 4, w: 3, h: 4 }, "nori"),
+      ...frame("stips", { x: 9, y: 4, w: 3, h: 4 }, "shiso"),
       kind: "note",
-      size: "m",
+      size: "s",
       text: "Tips\n\n• Share the link: everyone sees changes as they happen.\n\n• Set new visitor permissions to view/edit\n\n• Password protect the link, or allow anyone with it to join\n",
     },
     {

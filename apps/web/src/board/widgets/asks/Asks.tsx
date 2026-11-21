@@ -127,17 +127,19 @@ export function Asks(props: WidgetProps) {
                           aria-label={`${p().name}: ${openCount(p())} open${unread(p()) ? `, ${unread(p())} new` : ""}`}
                           onClick={() => openPerson(p())}
                         >
-                          <span class={styles.avatar} aria-hidden="true">
+                          <span class={styles.avatar} data-unread={unread(p()) > 0} aria-hidden="true">
                             {p().name.slice(0, 1).toUpperCase()}
                           </span>
                           <span class={styles.name}>{p().name}</span>
-                          <span class={styles.open}>{openCount(p())} open</span>
-                          <Show when={unread(p()) > 0}>
-                            <span class={styles.badge}>{unread(p())}</span>
-                          </Show>
+                          <span class={styles.open} aria-hidden="true">
+                            {openCount(p())} open
+                          </span>
                         </button>
                         <Show when={!props.readOnly}>
+                          {/* Hovering near the right edge slides the row over to show delete. */}
+                          <span class={styles.reveal} aria-hidden="true" />
                           <RemoveButton
+                            class={styles.remove}
                             label={`Remove ${p().name}`}
                             onClick={() => void change({ do: "removePerson", personId: p().id })}
                           />
