@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, Errored, Loading, Show } from "
 import { Board } from "../board/Board";
 import { Toolbar } from "../board/Toolbar";
 import { AddWidget } from "../board/AddWidget";
-import { openSession, PasswordRequired, type BoxSession } from "../board/session";
+import { NameTaken, openSession, PasswordRequired, type BoxSession } from "../board/session";
 import { HomeLink, Lockup, Mark } from "../brand/Logo";
 import { BoxNotFound, getBox, OverCapacity, Unreachable } from "../lib/api";
 import {
@@ -64,6 +64,17 @@ export function BoxPage(props: { id: string }) {
               defaultName={name() ?? undefined}
               onJoin={(n, pw) => {
                 join(n, pw);
+                reset();
+              }}
+            />
+          ) : err() instanceof NameTaken ? (
+            // Someone here already has that name: ask for another, then retry.
+            <JoinGate
+              id={props.id}
+              nameError={(err() as NameTaken).message}
+              defaultName={name() ?? undefined}
+              onJoin={(n) => {
+                join(n);
                 reset();
               }}
             />
@@ -174,6 +185,8 @@ function JoinGate(props: {
   /** Known up front from an earlier refusal; otherwise read from the bento's access. */
   needsPassword?: boolean;
   error?: string | null;
+  /** The name was refused (someone here has it); you're already past any password. */
+  nameError?: string | undefined;
   defaultName?: string | undefined;
 }) {
   const info = createMemo(() => getBox(props.id));
@@ -181,7 +194,10 @@ function JoinGate(props: {
   const suggested = props.defaultName ?? suggestName();
   // Creators skip the password: their owner token gets them in.
   const askPassword = createMemo(
-    () => !ownerTokenFor(props.id) && (props.needsPassword || info().access?.mode === "password"),
+    () =>
+      !props.nameError &&
+      !ownerTokenFor(props.id) &&
+      (props.needsPassword || info().access?.mode === "password"),
   );
   return (
     <main class={styles.page}>
@@ -229,6 +245,7 @@ function JoinGate(props: {
               saveHue(h);
             }}
             autofocus={!props.error}
+            error={props.nameError}
           />
           <Loading>
             <Show when={askPassword()}>

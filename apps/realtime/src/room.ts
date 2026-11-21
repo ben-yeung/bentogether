@@ -8,6 +8,7 @@ import {
   voterKey,
   clampFor,
   settle,
+  sameName,
   separateHue,
   changedIds,
   DEFAULT_ACCESS,
@@ -118,6 +119,17 @@ export class Room {
     ];
   }
 
+  /**
+   * Names are unique within a bento. Your own other tabs (same device)
+   * don't count, so reconnecting or opening a second tab never clashes.
+   */
+  nameTaken(name: string, clientId: string): boolean {
+    for (const p of this.peers.values()) {
+      if (p.clientId !== clientId && sameName(p.name, name)) return true;
+    }
+    return false;
+  }
+
   /** Restores a peer after the Durable Object wakes from hibernation. */
   restore(peer: Peer) {
     this.peers.set(peer.sid, { ...peer, presence: EMPTY_PRESENCE });
@@ -138,6 +150,15 @@ export class Room {
   rename(sid: string, name: string): Outgoing[] {
     const peer = this.peers.get(sid);
     if (!peer) return [];
+    // Taken: keep the old name and tell only them, which undoes it there.
+    if (this.nameTaken(name, peer.clientId)) {
+      return [
+        {
+          target: { to: "one", sid },
+          msg: { t: "peer", sid, name: peer.name, hue: peer.hue, role: peer.role },
+        },
+      ];
+    }
     peer.name = name;
     return [
       { target: { to: "all" }, msg: { t: "peer", sid, name, hue: peer.hue, role: peer.role } },

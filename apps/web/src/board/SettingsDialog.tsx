@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { NAME_MAX } from "@bentogether/shared";
+import { NAME_MAX, sameName } from "@bentogether/shared";
 import { personVars } from "../lib/identity";
 import { setThemePref, themePref, type ThemePref } from "../lib/theme";
 import { Dialog } from "../ui/Dialog";
@@ -36,7 +36,12 @@ export function SettingsDialog(props: {
     const next = input.value.trim().slice(0, NAME_MAX);
     const current = me()?.name ?? "";
     if (!next) input.value = current;
-    else if (next !== current) props.onRename(next);
+    else if (next === current) return;
+    else if (Object.values(s().peers).some((p) => p.sid !== s().server.sid && sameName(p.name, next))) {
+      // Names are unique in a bento (the server checks too).
+      input.value = current;
+      props.toast(`Someone here is already called ${next}.`, "error");
+    } else props.onRename(next);
   }
 
   return (

@@ -15,6 +15,8 @@ export function NameField(props: {
   hue: number;
   onHue: (hue: number) => void;
   autofocus?: boolean;
+  /** Shown under the field, e.g. when someone here already has the name. */
+  error?: string | undefined;
 }) {
   // The picker stays tucked away: a small dot at the input's right edge
   // opens a compact popover of swatches.
@@ -47,7 +49,10 @@ export function NameField(props: {
           maxlength={NAME_MAX}
           autocomplete="nickname"
           aria-label="Your name"
+          aria-invalid={props.error ? "true" : "false"}
+          aria-describedby={props.error ? "your-name-error" : undefined}
           autofocus={props.autofocus}
+          onFocus={(e) => props.error && e.currentTarget.select()}
         />
         <button
           type="button"
@@ -82,6 +87,11 @@ export function NameField(props: {
           </div>
         </Show>
       </span>
+      <Show when={props.error}>
+        <span id="your-name-error" class={styles.error} role="alert">
+          {props.error}
+        </span>
+      </Show>
     </div>
   );
 }

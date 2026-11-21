@@ -58,6 +58,14 @@ export class PasswordRequired extends Error {
   }
 }
 
+/** Someone in the bento already goes by the name you joined with. */
+export class NameTaken extends Error {
+  constructor(public readonly taken: string) {
+    super(`Someone here is already called ${taken}.`);
+    this.name = "NameTaken";
+  }
+}
+
 export class OpRejected extends Error {
   constructor(message: string) {
     super(message);
@@ -351,16 +359,24 @@ function createSession(boxId: string, identity: () => Hello) {
           d.notice = new OverCapacity().message;
         });
       }
+      // Rare: someone took your name while you were reconnecting.
+      if (status === "closed" && welcomed && close?.code === CLOSE.nameTaken) {
+        setServer((d) => {
+          d.notice = "Someone else here took your name while you were away.\nReload to pick another.";
+        });
+      }
       if (status === "closed" && !welcomed) {
         clearTimeout(connectTimer);
         rejectReady(
           close?.code === CLOSE.password
             ? new PasswordRequired(close.reason === "wrong")
-            : close?.code === CLOSE.tooMany
-              ? new Error(close.reason || "This bento is full.")
-              : close?.code === CLOSE.overCapacity
-                ? new OverCapacity()
-                : new BoxNotFound(),
+            : close?.code === CLOSE.nameTaken
+              ? new NameTaken(identity().name)
+              : close?.code === CLOSE.tooMany
+                ? new Error(close.reason || "This bento is full.")
+                : close?.code === CLOSE.overCapacity
+                  ? new OverCapacity()
+                  : new BoxNotFound(),
         );
       }
     },

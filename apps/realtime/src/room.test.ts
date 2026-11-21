@@ -77,6 +77,37 @@ describe("joining", () => {
   });
 });
 
+describe("unique names", () => {
+  it("knows a name someone else here already has, whatever the case", () => {
+    const room = setup();
+    expect(room.nameTaken("mochi ", "clientnew")).toBe(true);
+    expect(room.nameTaken("Tofu", "clientnew")).toBe(false);
+  });
+
+  it("doesn't count your own other tabs", () => {
+    const room = setup();
+    expect(room.nameTaken("Mochi", "clientmochi")).toBe(false);
+  });
+
+  it("frees a name once its person leaves", () => {
+    const room = setup();
+    room.leave("s1");
+    expect(room.nameTaken("Mochi", "clientnew")).toBe(false);
+  });
+
+  it("keeps your old name when you rename to a taken one, and tells only you", () => {
+    const room = setup();
+    const out = room.rename("s2", "MOCHI");
+    expect(room.peers.get("s2")!.name).toBe("Nori");
+    expect(out).toEqual([
+      {
+        target: { to: "one", sid: "s2" },
+        msg: { t: "peer", sid: "s2", name: "Nori", hue: expect.any(Number), role: "editor" },
+      },
+    ]);
+  });
+});
+
 describe("ops", () => {
   it("creates a note, stamps the author and broadcasts it with the opId", () => {
     const room = setup();
