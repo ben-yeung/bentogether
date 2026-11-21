@@ -34,16 +34,79 @@
   color: var(--lacquer-faint);
 }
 
+/* One button: the link and its copy icon, in a thin pill. */
 .linkRow {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  /* One grey for the pill's border and the copy icon's backdrop. */
+  --link-grey: color-mix(in srgb, var(--lacquer) 14%, transparent);
+  padding: 0.2rem 0.2rem 0.2rem 0.9rem;
+  border: 1px solid var(--link-grey);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--lacquer-soft);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 140ms var(--ease-soft),
+    color 140ms var(--ease-soft);
 }
 
-.linkInput {
+.linkRow:hover {
+  color: var(--lacquer);
+}
+
+.linkRow:focus-visible {
+  outline: none;
+  border-color: var(--lacquer);
+  box-shadow: 0 0 0 1px var(--lacquer);
+  color: var(--lacquer);
+}
+
+.linkText {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: var(--font-mono);
   font-size: var(--step--1);
+}
+
+.copyIcon {
+  flex: none;
+}
+
+.linkRow:hover .copyIcon,
+.linkRow:focus-visible .copyIcon {
+  background: var(--link-grey);
+  color: var(--lacquer);
+}
+
+.copyIcon {
+  transition:
+    background-color 160ms var(--ease-soft),
+    color 160ms var(--ease-soft);
+}
+
+/* Copied: a soft green wash behind the check, same green as the link icon. */
+.copyIcon[data-copied],
+.linkRow:hover .copyIcon[data-copied],
+.linkRow:focus-visible .copyIcon[data-copied] {
+  background: color-mix(in srgb, var(--ing-edamame) 70%, var(--rice));
+  color: var(--lacquer);
+}
+
+.copyIcon svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .section {
@@ -122,16 +185,27 @@
 
 .accessRow {
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+/* Right-aligned, like a person's role ("Creator") above. */
+.accessStatus {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: var(--step--1);
+  color: var(--lacquer-faint);
+  padding-right: 0.6rem;
 }
 
 .accessIcon {
   display: grid;
   place-items: center;
   flex: none;
-  width: 2.2rem;
-  height: 2.2rem;
+  /* Same size as a person's face above. */
+  width: 1.9rem;
+  height: 1.9rem;
   border-radius: 50%;
   background: color-mix(in srgb, var(--ing-edamame) 70%, var(--rice));
   color: var(--lacquer);
@@ -142,18 +216,13 @@
 }
 
 .accessIcon svg {
-  width: 1.1rem;
-  height: 1.1rem;
+  width: 1rem;
+  height: 1rem;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.accessText {
-  display: grid;
-  min-width: 0;
 }
 
 .accessHint {
@@ -165,7 +234,7 @@
 .passwordRow {
   display: flex;
   gap: 0.5rem;
-  padding-left: 2.95rem;
+  padding-left: 2.6rem; /* icon + gap */
 }
 
 .passwordInput {
