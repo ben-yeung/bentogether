@@ -25,6 +25,9 @@
   box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--lacquer) 30%, transparent);
   /* Over a board with a custom cursor, menus use normal cursors. */
   cursor: auto;
+  /* Its trigger may sit in a hover-only toolbar (pointer-events: none
+     until hovered); the open list always takes clicks. */
+  pointer-events: auto;
   outline: none;
 }
 
