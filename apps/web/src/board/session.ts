@@ -48,7 +48,9 @@ import {
 } from "@bentogether/shared";
 import { Socket, type SocketStatus } from "../lib/socket";
 import { socketUrl } from "../lib/config";
-import { BoxNotFound, OverCapacity, Unreachable } from "../lib/api";
+import { BoxNotFound, Outdated, OverCapacity, Unreachable } from "../lib/api";
+import { forgetOwnerToken } from "../lib/owner";
+import { forgetBox } from "../lib/recent";
 import type { LocalIdentity } from "../lib/identity";
 
 const OP_TIMEOUT_MS = 8000;
@@ -111,11 +113,12 @@ export class OpRejected extends Error {
 type ServerState = {
   meta: BoxMeta | null;
   widgets: Record<string, Widget>;
-  rev: number;
   sid: string;
   status: SocketStatus;
   /** Why the server ended a live session, when it says (e.g. out of capacity). */
   notice: string | null;
+  /** The creator deleted the bento while you were in it. */
+  deleted: boolean;
 };
 
 /**
@@ -164,6 +167,22 @@ type Pending = {
   created: Record<string, Widget>;
 };
 
+/**
+ * Copies `next` into a store object leaf by leaf, so only the fields that
+ * changed notify their readers. Nested objects are merged the same way. A
+ * null, an object where there was null, and arrays are set whole: merging
+ * an array by position would keep items that were removed.
+ */
+function mergeInto(target: object, next: object) {
+  const t = target as Record<string, unknown>;
+  for (const [key, value] of Object.entries(next)) {
+    const cur = t[key];
+    const objects = (x: unknown) => typeof x === "object" && x !== null && !Array.isArray(x);
+    if (objects(value) && objects(cur)) mergeInto(cur as object, value as object);
+    else if (cur !== value) t[key] = value;
+  }
+}
+
 export type BoxSession = ReturnType<typeof createSession>["session"];
 
 /**
@@ -184,10 +203,10 @@ function createSession(boxId: string, identity: () => Hello) {
   const [server, setServer] = createStore<ServerState>({
     meta: null,
     widgets: {},
-    rev: 0,
     sid: "",
     status: "connecting",
     notice: null,
+    deleted: false,
   });
   const [overlay, setOverlay] = createOptimisticStore<Overlay>({
     rects: {},
@@ -293,8 +312,8 @@ function createSession(boxId: string, identity: () => Hello) {
     }
     if (w.kind === "note" && docs.has(w.id)) {
       const { text: _text, tv: _tv, ...rest } = w;
-      Object.assign(cur, rest);
-    } else Object.assign(cur, w);
+      mergeInto(cur, rest);
+    } else mergeInto(cur, w);
   }
 
   function mergeAll(d: ServerState, widgets: Widget[]) {
@@ -319,8 +338,8 @@ function createSession(boxId: string, identity: () => Hello) {
         }
         texts.clear();
         setServer((d) => {
-          d.meta = msg.box;
-          d.rev = msg.rev;
+          if (d.meta) mergeInto(d.meta, msg.box);
+          else d.meta = msg.box;
           d.sid = msg.self.sid;
           const next = Object.fromEntries(msg.widgets.map((w) => [w.id, w]));
           for (const id of Object.keys(d.widgets)) if (!next[id]) delete d.widgets[id];
@@ -337,7 +356,6 @@ function createSession(boxId: string, identity: () => Hello) {
       }
       case "applied": {
         setServer((d) => {
-          d.rev = msg.rev;
           for (const id of msg.remove) delete d.widgets[id];
           mergeAll(d, msg.upsert);
         });
@@ -380,12 +398,15 @@ function createSession(boxId: string, identity: () => Hello) {
       case "presence":
         setPeers((d) => {
           const p = d[msg.sid];
-          if (p) p.presence = msg.presence;
+          // Field by field: replacing the whole object would re-run every
+          // reader of any part of it, 20 times a second per person.
+          if (p) mergeInto(p.presence, msg.presence);
         });
         return;
       case "meta":
         setServer((d) => {
-          d.meta = msg.box;
+          if (d.meta) mergeInto(d.meta, msg.box);
+          else d.meta = msg.box;
         });
         if (msg.opId) settleOp(msg.opId);
         return;
@@ -412,6 +433,16 @@ function createSession(boxId: string, identity: () => Hello) {
       setServer((d) => {
         d.status = status;
       });
+      // Deleted: your own delete request succeeded; everyone else is told.
+      if (status === "closed" && welcomed && close?.code === CLOSE.deleted) {
+        if (deleteOpId) settleOp(deleteOpId);
+        forgetBox(boxId);
+        forgetOwnerToken(boxId);
+        setServer((d) => {
+          d.deleted = true;
+          if (!deleteOpId) d.notice = "The creator deleted this bento.";
+        });
+      }
       // Typing isn't failed: it waits, and goes again once the bento's back.
       if (status !== "open") failAllInflight("Lost the connection. That change wasn't saved.");
       // Everyone else is shown again by the next welcome. You stay, so your
@@ -423,6 +454,11 @@ function createSession(boxId: string, identity: () => Hello) {
       if (status === "closed" && welcomed && close?.code === CLOSE.overCapacity) {
         setServer((d) => {
           d.notice = new OverCapacity().message;
+        });
+      }
+      if (status === "closed" && welcomed && close?.code === CLOSE.outdated) {
+        setServer((d) => {
+          d.notice = new Outdated().message;
         });
       }
       // Rare: someone took your name while you were reconnecting.
@@ -442,7 +478,9 @@ function createSession(boxId: string, identity: () => Hello) {
                 ? new Error(close.reason || "This bento is full.")
                 : close?.code === CLOSE.overCapacity
                   ? new OverCapacity()
-                  : new BoxNotFound(),
+                  : close?.code === CLOSE.outdated
+                    ? new Outdated()
+                    : new BoxNotFound(),
         );
       }
     },
@@ -705,6 +743,19 @@ function createSession(boxId: string, identity: () => Hello) {
   }
 
   /** Sends a request the server answers with `meta`/`peer` (or `rejected`) carrying its opId. */
+  /** Set while your delete request is out; the server answers by closing. */
+  let deleteOpId: string | null = null;
+
+  /** Deletes the bento for everyone. Resolves once the server has. */
+  function deleteBento(): Promise<void> {
+    return request((opId) => {
+      deleteOpId = opId;
+      return { t: "delete", opId };
+    }).finally(() => {
+      deleteOpId = null;
+    });
+  }
+
   function request(build: (opId: string) => ClientMessage): Promise<void> {
     const opId = randomId(10);
     return new Promise<void>((resolve, reject) => {
@@ -1105,6 +1156,7 @@ function createSession(boxId: string, identity: () => Hello) {
     setAccess,
     setOptions,
     clearBento,
+    deleteBento,
     setRole,
     remove,
     // live

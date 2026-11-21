@@ -10,16 +10,18 @@ plus the seam between them (`packages/shared`, the socket protocol).
 
 ## Status after the follow-ups (same day)
 
-| #       | Outcome                                                                                                                    |
-| ------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 1       | **Fixed.** Leases survive hibernation, idle takeover after 30 s, and unsent words are kept (see "Editing the same widget") |
-| 2       | **Fixed.** Confirmed changes are written in the same event (`Box.save`); only note text is coalesced                       |
-| 3       | **Fixed.** `Socket.retire()` detaches and closes the old connection; every handler checks it's current                     |
-| 4       | **Fixed.** Presence pauses while the tab is hidden or unfocused, and an unchanged presence isn't re-sent                   |
-| 7       | **Fixed.** Comes with 2: `now`, `soon` and `removed` now mean what their comments say                                      |
-| 9       | **Fixed.** Hardened for hostile clients (see its section, which also corrects my first claim)                              |
-| 10      | **Fixed.** `SOLID-2.md` paths and entries 1 and 4, and the README's architecture notes                                     |
-| 5, 6, 8 | Open                                                                                                                       |
+| #   | Outcome                                                                                                                    |
+| --- | -------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Fixed.** Leases survive hibernation, idle takeover after 30 s, and unsent words are kept (see "Editing the same widget") |
+| 2   | **Fixed.** Confirmed changes are written in the same event (`Box.save`); only note text is coalesced                       |
+| 3   | **Fixed.** `Socket.retire()` detaches and closes the old connection; every handler checks it's current                     |
+| 4   | **Fixed.** Presence pauses while the tab is hidden or unfocused, and an unchanged presence isn't re-sent                   |
+| 7   | **Fixed.** Comes with 2: `now`, `soon` and `removed` now mean what their comments say                                      |
+| 9   | **Fixed.** Hardened for hostile clients (see its section, which also corrects my first claim)                              |
+| 10  | **Fixed.** `SOLID-2.md` paths and entries 1 and 4, and the README's architecture notes                                     |
+| 5   | **Fixed (branch `claude/review-leftovers`).** Socket ids are cached in a `WeakMap`; `dispatch` reads each once per batch   |
+| 6   | **Fixed (same branch).** `rev` removed from the protocol; note text has its own persisted version (`tv`)                   |
+| 8   | **Fixed (same branch).** A hello on another version closes with `CLOSE.outdated`; the tab offers Reload                    |
 
 Verified with `npm run check` (118 unit tests) and the full Playwright suite
 (26 passed), run against this branch's own servers on ports 5174 and 8788.
@@ -30,6 +32,10 @@ test waits out the real 30 s and holds back Alice's last words with
 Playwright's WebSocket routing. It passes through a real hibernation and
 wake under `wrangler dev`. The `Box` changes (2, 9) still have no direct
 test, because there's no Workers test harness yet.
+
+**Fixed on `claude/review-leftovers`:** store objects (presence, widgets,
+the bento's meta) are now merged field by field, and the e2e suite runs
+with no `IMMUTABLE_UPDATE_IN_STORE` warnings. The original note follows.
 
 **New, seen during the e2e run:** Solid's dev build warns
 `IMMUTABLE_UPDATE_IN_STORE` for `peers[sid].presence = msg.presence`

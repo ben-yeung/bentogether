@@ -22,3 +22,14 @@ export function saveOwnerToken(boxId: string, token: string) {
     // Not persisted: you can't rename this bento from another visit.
   }
 }
+
+/** Drops a deleted bento's token. */
+export function forgetOwnerToken(boxId: string) {
+  try {
+    const all = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Record<string, string>;
+    delete all[boxId];
+    localStorage.setItem(KEY, JSON.stringify(all));
+  } catch {
+    // Best effort.
+  }
+}

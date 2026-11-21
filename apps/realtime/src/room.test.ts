@@ -118,7 +118,6 @@ describe("ops", () => {
     expect(applied.t === "applied" && applied.opId).toBe("op1");
     expect(room.widgets.get("note0001")?.createdBy).toBe("Mochi");
     expect(persist.now.has("note0001")).toBe(true);
-    expect(room.rev).toBe(1);
   });
 
   it("rejects a duplicate id to the sender only", () => {
@@ -433,6 +432,17 @@ describe("ownership", () => {
       target: { to: "all" },
       msg: { opId: "x2", upsert: [], remove: ["aaaaaaaa", "bbbbbbbb"] },
     });
+  });
+
+  it("lets only the owner delete the bento", () => {
+    const room = new Room(meta);
+    room.join("own", hello("Mochi"), true);
+    room.join("gst", hello("Nori"));
+    expect(room.mayDelete("gst", "d1")?.[0]).toMatchObject({
+      target: { to: "one", sid: "gst" },
+      msg: { t: "rejected", opId: "d1", code: "forbidden" },
+    });
+    expect(room.mayDelete("own", "d2")).toBeNull();
   });
 
   it("credits the owner by their current name and color", () => {
