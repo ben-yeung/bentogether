@@ -32,7 +32,11 @@ export function Select<T extends string>(props: {
   let trigger!: HTMLButtonElement;
   let list!: HTMLUListElement;
 
-  const index = () => Math.max(0, props.options.findIndex((o) => o.value === props.value));
+  const index = () =>
+    Math.max(
+      0,
+      props.options.findIndex((o) => o.value === props.value),
+    );
   const current = () => props.options[index()];
 
   function place() {

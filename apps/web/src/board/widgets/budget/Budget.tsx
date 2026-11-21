@@ -1,10 +1,5 @@
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
-import {
-  CURRENCIES,
-  SYSTEM_AUTHOR,
-  WIDGET_TITLE_MAX,
-  type BudgetChange,
-} from "@bentogether/shared";
+import { CURRENCIES, SYSTEM_AUTHOR, WIDGET_TITLE_MAX, type BudgetChange } from "@bentogether/shared";
 import { personVars } from "../../../lib/identity";
 import { editableAmount, formatMoney, parseAmount } from "../../../lib/money";
 import { ColorTools } from "../../frame/ColorTools";
