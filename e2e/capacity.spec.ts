@@ -43,7 +43,7 @@ test("an unreachable server is explained, not an endless spinner", async ({ page
 
 test("running out mid-session pauses the bento with a notice", async ({ page }) => {
   let socket: WebSocketRoute | undefined;
-  await page.routeWebSocket(/\/ws$/, (ws) => {
+  await page.routeWebSocket(/\/ws(?:\?|$)/, (ws) => {
     ws.connectToServer();
     socket = ws;
   });

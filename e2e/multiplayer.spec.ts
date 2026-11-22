@@ -97,7 +97,7 @@ test("typing through a dropped connection lands once it's back, merged with othe
   // like edits lost when a connection dies; `drop()` then ends the link.
   let cut = false;
   let drop = async () => {};
-  await a.routeWebSocket(/\/api\/boxes\/[a-z0-9]+\/ws$/, (ws) => {
+  await a.routeWebSocket(/\/api\/boxes\/[a-z0-9]+\/ws(?:\?|$)/, (ws) => {
     const server = ws.connectToServer();
     ws.onMessage((m) => {
       if (cut && typeof m === "string" && m.includes('"type":"text"')) return;
@@ -140,7 +140,7 @@ test("a tab running older code is asked to reload, not left hanging", async ({ b
   const [a, b] = await twoPeople(browser);
   await newBox(a, "Versions");
   // B's tab says hello as last version's code would.
-  await b.routeWebSocket(/\/api\/boxes\/[a-z0-9]+\/ws$/, (ws) => {
+  await b.routeWebSocket(/\/api\/boxes\/[a-z0-9]+\/ws(?:\?|$)/, (ws) => {
     const server = ws.connectToServer();
     ws.onMessage((m) => {
       const msg = typeof m === "string" ? (JSON.parse(m) as { t?: string; v?: number }) : null;

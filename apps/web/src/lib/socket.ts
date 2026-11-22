@@ -66,7 +66,6 @@ export class Socket {
     // deliver messages, or the box would see you twice.
     ws.onopen = () => {
       if (this.ws !== ws) return;
-      this.attempt = 0;
       ws.send(JSON.stringify(this.opts.hello()));
       clearInterval(this.pingTimer);
       this.pingTimer = setInterval(() => this.send({ t: "ping" }), PING_MS);
@@ -80,7 +79,13 @@ export class Socket {
       } catch {
         return;
       }
-      if (msg.t === "welcome") this.opts.onStatus("open");
+      // Backoff resets only once the box has let us in, not when the socket
+      // opens: a box that accepts and then closes straight away would
+      // otherwise get a reconnect every few hundred milliseconds, forever.
+      if (msg.t === "welcome") {
+        this.attempt = 0;
+        this.opts.onStatus("open");
+      }
       this.opts.onMessage(msg);
     };
 
