@@ -1,6 +1,6 @@
 import * as v from "valibot";
-import { CLOSE, CreateBoxSchema, ID_PATTERN, randomId } from "@bentogether/shared";
-import { ipKey, isQuotaError, originAllowed } from "./limits";
+import { CLOSE, CreateBoxSchema, ID_PATTERN, PROTOCOL_VERSION, randomId } from "@bentogether/shared";
+import { ipKey, isQuotaError, originAllowed, socketVersion } from "./limits";
 import { devEnabled, devRoute, simulate } from "./dev";
 
 export { Box } from "./box";
@@ -12,7 +12,7 @@ export { Box } from "./box";
  *
  *   POST /api/boxes            → { id }
  *   GET  /api/boxes/:id        → box meta, or 404
- *   GET  /api/boxes/:id/ws     → WebSocket upgrade
+ *   GET  /api/boxes/:id/ws?v=N → WebSocket upgrade (N = PROTOCOL_VERSION)
  *   GET  /health               → ok
  *
  * Once the free plan's daily Durable Object quota is used up, calls to a box
@@ -86,6 +86,11 @@ async function route(request: Request, env: Env, allowed: boolean, cors: Headers
 
   if (ws) {
     if (request.headers.get("Upgrade") !== "websocket") return json({ error: "upgrade_required" }, 426, cors);
+    // Old builds are turned away here, before the box wakes. A tab left open
+    // across a deploy once reconnected every second for a day this way.
+    const version = socketVersion(url, PROTOCOL_VERSION);
+    if (version === "legacy") return json({ error: "outdated" }, 426, cors);
+    if (version === "outdated") return refuseSocket(CLOSE.outdated, "Reload to update");
     // Limits reconnect loops, which would otherwise reset every
     // per-connection limit inside the box.
     if (!(await env.CONNECT_LIMITER.limit({ key: ip })).success)

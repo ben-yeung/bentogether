@@ -132,3 +132,23 @@ export function isQuotaError(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err);
   return /exceeded allowed|free tier|storage limit/i.test(message);
 }
+
+/**
+ * What a socket upgrade's `?v=` says about the client's build.
+ *
+ *   ok        current protocol: hand it to the box
+ *   outdated  a newer-style client on another version; it understands
+ *             `CLOSE.outdated`, so it can be told to reload
+ *   legacy    no `v` at all: a build from before the version was sent. Those
+ *             builds don't all stop on `CLOSE.outdated` and reset their
+ *             backoff whenever a socket opens, so accepting one only to close
+ *             it starts a reconnect loop. Refusing the handshake instead
+ *             lets their backoff grow.
+ *
+ * Checked in the Worker, so none of these wake the box's Durable Object.
+ */
+export function socketVersion(url: URL, current: number): "ok" | "outdated" | "legacy" {
+  const v = url.searchParams.get("v");
+  if (v === null) return "legacy";
+  return v === String(current) ? "ok" : "outdated";
+}

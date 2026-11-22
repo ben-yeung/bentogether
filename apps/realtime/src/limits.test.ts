@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TokenBucket, ipKey, isQuotaError, originAllowed } from "./limits";
+import { TokenBucket, ipKey, isQuotaError, originAllowed, socketVersion } from "./limits";
 
 describe("TokenBucket", () => {
   it("spends the burst, then refills over time", () => {
@@ -49,5 +49,20 @@ describe("isQuotaError", () => {
     expect(isQuotaError(new Error("Network connection lost."))).toBe(false);
     expect(isQuotaError(new TypeError("x is undefined"))).toBe(false);
     expect(isQuotaError("boom")).toBe(false);
+  });
+});
+
+describe("socketVersion", () => {
+  const at = (q: string) => new URL(`https://rt.example/api/boxes/abc/ws${q}`);
+  it("lets the current version through", () => {
+    expect(socketVersion(at("?v=3"), 3)).toBe("ok");
+  });
+  it("calls another version outdated", () => {
+    expect(socketVersion(at("?v=2"), 3)).toBe("outdated");
+    expect(socketVersion(at("?v=4"), 3)).toBe("outdated");
+    expect(socketVersion(at("?v="), 3)).toBe("outdated");
+  });
+  it("calls a URL without a version legacy", () => {
+    expect(socketVersion(at(""), 3)).toBe("legacy");
   });
 });
