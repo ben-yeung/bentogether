@@ -283,17 +283,18 @@ tbody tr:first-child .cell::before {
   }
 }
 
+/* The widget's own pastel on the dark pop, at full strength so the small
+   mono date reads as easily as the names. */
 .popTime {
   margin: 0 0 0.3em;
   font-family: var(--font-mono);
   font-size: 0.85em;
-  opacity: 0.7;
+  font-weight: 500;
   white-space: nowrap;
 }
 
 .popEmpty {
   margin: 0;
-  opacity: 0.8;
 }
 
 .popList {

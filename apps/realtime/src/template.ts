@@ -99,10 +99,10 @@ export function starterBento(boxId: string, now: number): Widget[] {
 
   return [
     {
-      ...frame("swelcome", { x: 0, y: 0, w: 4, h: 3 }, "tamago"),
+      ...frame("swelcome", { x: 0, y: 0, w: 4, h: 3 }, "tamago", "Welcome to the bento"),
       kind: "note",
       size: "m",
-      text: "Welcome to the bento 🍱\n\nEvery widget here is shared live. \n\nDrag one by its body, pull a corner to resize, and try them all.\n\nAdd more from the + in the corner.",
+      text: "Every widget here is shared live. \n\nDrag one by its body, pull a corner to resize, and try them all.\n\nAdd more from the + in the corner.",
     },
     {
       ...frame("stodo", { x: 4, y: 2, w: 5, h: 3 }, "edamame", "Before the outing"),
@@ -205,10 +205,10 @@ export function starterBento(boxId: string, now: number): Widget[] {
       })),
     },
     {
-      ...frame("stips", { x: 9, y: 4, w: 3, h: 4 }, "shiso"),
+      ...frame("stips", { x: 9, y: 4, w: 3, h: 4 }, "shiso", "Tips"),
       kind: "note",
       size: "s",
-      text: "Tips\n\n• Share the link: everyone sees changes as they happen.\n\n• Choose whether new visitors can view or edit.\n\n• Password protect the link, or let anyone with it join.\n",
+      text: "• Share the link: everyone sees changes as they happen.\n\n• Choose whether new visitors can view or edit.\n\n• Password protect the link, or let anyone with it join.\n",
     },
     {
       ...frame("scalendar", { x: 0, y: 8, w: 7, h: 5 }, "tamago", "Plans"),

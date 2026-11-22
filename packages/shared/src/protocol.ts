@@ -60,10 +60,16 @@ export const HueSchema = v.pipe(v.number(), v.finite(), v.minValue(0), v.maxValu
 
 // ------------------------------------------------------------------- widgets
 
+/** Longest title line on a widget (a note's, a To-do's, a timer's...). */
+export const WIDGET_TITLE_MAX = 60;
+const WidgetTitle = v.pipe(v.string(), v.maxLength(WIDGET_TITLE_MAX));
+
 export const NoteWidgetSchema = v.object({
   id: Id,
   kind: v.literal("note"),
   ...RectSchema.entries,
+  /** The top line, set apart from the text. Missing on notes made before titles. */
+  title: v.optional(WidgetTitle),
   text: v.pipe(v.string(), v.maxLength(NOTE_TEXT_MAX)),
   color: NoteColorSchema,
   /** Optional on the wire so notes saved before sizes existed still parse. */
@@ -79,10 +85,6 @@ export const NoteWidgetSchema = v.object({
   updatedAt: v.number(),
 });
 export type NoteWidget = v.InferOutput<typeof NoteWidgetSchema>;
-
-/** Longest heading on a list widget (a To-do's title line). */
-export const WIDGET_TITLE_MAX = 60;
-const WidgetTitle = v.pipe(v.string(), v.maxLength(WIDGET_TITLE_MAX));
 
 /**
  * Items a To-do holds. Every change rewrites the whole widget row and
@@ -567,7 +569,7 @@ export const OpSchema = v.variant("type", [
     color: v.optional(NoteColorSchema),
     /** Notes only. */
     size: v.optional(TextSizeSchema),
-    /** To-do and Budget: the title line. */
+    /** Every widget's title line. */
     title: v.optional(WidgetTitle),
     /** Budget only. */
     currency: v.optional(CurrencySchema),

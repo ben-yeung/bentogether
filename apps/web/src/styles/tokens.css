@@ -33,6 +33,10 @@
   --note-ink: #1f1a17;
   /* Text on the deeper person colors (see personInk). */
   --pill-ink-light: #ffffff;
+  /* Cursor name labels: white with a faint dark halo on light boxes, dark
+     ink on the lifted person colors of dark mode. */
+  --tag-ink: var(--pill-ink-light);
+  --tag-halo: color-mix(in srgb, var(--pill-ink) 45%, transparent);
 
   /* Type */
   --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
@@ -85,6 +89,8 @@
     --ing-nori: oklch(0.77 0.045 210);
     --ing-shiso: oklch(0.75 0.05 305);
     --person-dl: 0.04;
+    --tag-ink: var(--pill-ink);
+    --tag-halo: transparent;
     --lift-shadow: 0 14px 30px -10px rgb(0 0 0 / 0.6);
   }
 }
@@ -109,6 +115,8 @@
   --ing-nori: oklch(0.77 0.045 210);
   --ing-shiso: oklch(0.75 0.05 305);
   --person-dl: 0.04;
+  --tag-ink: var(--pill-ink);
+  --tag-halo: transparent;
   --lift-shadow: 0 14px 30px -10px rgb(0 0 0 / 0.6);
 }
 

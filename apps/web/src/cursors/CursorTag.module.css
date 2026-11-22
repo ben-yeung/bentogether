@@ -10,9 +10,10 @@
   padding: 0.18em 0.65em 0.24em;
   border-radius: var(--radius-pill);
   background: var(--c);
-  /* White on every pill; a faint shadow keeps it legible on the brightest tones. */
-  color: var(--pill-ink-light);
-  text-shadow: 0 0 2px color-mix(in srgb, var(--pill-ink) 45%, transparent);
+  /* One ink for every pill: white in light mode, where a faint halo keeps it
+     legible on the brightest tones; dark in dark mode (see tokens.css). */
+  color: var(--tag-ink);
+  text-shadow: 0 0 2px var(--tag-halo);
   font-family: var(--font-mono);
   font-size: var(--step--1);
   line-height: 1.3;

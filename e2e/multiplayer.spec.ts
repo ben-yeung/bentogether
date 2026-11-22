@@ -72,9 +72,10 @@ test("two people type in one note at once, and both see the same text", async ({
   await expect(a.getByLabel("Note text")).toHaveValue("Menu: Onigiri for everyone");
   await expect(b.getByLabel("Note text")).toHaveValue("Menu: Onigiri for everyone");
 
-  // Each sees the other's caret in the note, named, and who's typing.
-  await expect(a.locator("[data-note]").first().getByText("Guest", { exact: true })).toBeVisible();
-  await expect(b.locator("[data-note]").first().getByText("Host", { exact: true })).toBeVisible();
+  // Each sees the other's caret in the note, flagged with their name and
+  // "typing" (it stands in for their cursor), and who's typing.
+  await expect(a.locator("[data-note]").first().getByText("Guest · typing", { exact: true })).toBeVisible();
+  await expect(b.locator("[data-note]").first().getByText("Host · typing", { exact: true })).toBeVisible();
   await expect(a.locator("[data-note]").first()).toContainText("Guest is typing");
 
   // Finishing clears it, and the text is saved for newcomers.

@@ -132,8 +132,13 @@ export function Poll(props: WidgetProps) {
               Several
             </button>
             <Show when={voterCount() > 0}>
-              <button type="button" class={parts.chip} onClick={() => void change({ do: "clearVotes" })}>
-                Clear votes
+              <button
+                type="button"
+                class={parts.chip}
+                aria-label="Clear votes"
+                onClick={() => void change({ do: "clearVotes" })}
+              >
+                Clear
               </button>
             </Show>
           </>

@@ -1,4 +1,4 @@
-import { createEffect, createMemo, For, onSettled } from "solid-js";
+import { createEffect, createMemo, For, onSettled, Show } from "solid-js";
 import type { Action, Peer } from "@bentogether/shared";
 import { personVars } from "../lib/identity";
 import { CursorTag } from "./CursorTag";
@@ -26,16 +26,20 @@ export function RemoteCursors(props: { peers: Peer[]; pitch: number; width: numb
     <div class={styles.layer} aria-hidden="true">
       <For each={props.peers} keyed={(p) => p.sid}>
         {(peer) => (
-          <RemoteCursor
-            name={peer().name}
-            hue={peer().hue}
-            x={peer().presence.cursor?.x ?? null}
-            y={peer().presence.cursor?.y ?? null}
-            action={peer().presence.action}
-            pitch={props.pitch}
-            width={props.width}
-            reduceMotion={props.reduceMotion}
-          />
+          // While someone's caret is in a note, the caret (with its "typing"
+          // flag) stands in for their cursor, so it isn't shown twice.
+          <Show when={!peer().presence.caret}>
+            <RemoteCursor
+              name={peer().name}
+              hue={peer().hue}
+              x={peer().presence.cursor?.x ?? null}
+              y={peer().presence.cursor?.y ?? null}
+              action={peer().presence.action}
+              pitch={props.pitch}
+              width={props.width}
+              reduceMotion={props.reduceMotion}
+            />
+          </Show>
         )}
       </For>
     </div>

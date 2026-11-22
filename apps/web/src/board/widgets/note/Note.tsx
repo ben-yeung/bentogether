@@ -33,6 +33,7 @@ import {
 } from "../../../lib/markdown";
 import { ColorTools } from "../../frame/ColorTools";
 import { WidgetFrame, frameParts, type WidgetProps } from "../../frame/WidgetFrame";
+import { TitleLine } from "../../frame/parts";
 import styles from "./Note.module.css";
 
 const SIZE_LABEL: Record<TextSize, string> = { s: "Small", m: "Medium", l: "Large", xl: "Extra large" };
@@ -274,6 +275,16 @@ export function Note(props: WidgetProps) {
       onActivate={startEditing}
       onKey={onKey}
     >
+      <div class={styles.head}>
+        <TitleLine
+          id={props.id}
+          session={s()}
+          readOnly={props.readOnly}
+          placeholder={props.readOnly ? "Note" : "Add a title"}
+          label="Note title"
+          onError={props.onError}
+        />
+      </div>
       <div class={styles.body}>
         <Show
           when={editing()}
@@ -422,7 +433,10 @@ function CaretText(props: { text: string; carets: Caret[] }) {
           <Match when={caretOf(piece())}>
             {(c) => (
               <span class={styles.caret} style={personVars(c().hue)} aria-hidden="true">
-                <span class={styles.flag}>{c().name}</span>
+                <span class={styles.flag}>
+                  {c().name}
+                  <span class={styles.flagSep}> · </span>typing
+                </span>
               </span>
             )}
           </Match>

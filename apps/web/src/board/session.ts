@@ -605,7 +605,7 @@ function createSession(boxId: string, identity: () => Hello) {
     yield sendOp({ type: "patch", id, size });
   });
 
-  /** The title line of a To-do or Budget. Last one saved wins. */
+  /** A widget's title line. Last one saved wins. */
   function setListTitle(id: string, title: string): Promise<void> {
     const key = randomId(10);
     setPending((d) => {
@@ -1134,7 +1134,7 @@ function createSession(boxId: string, identity: () => Hello) {
     kind: (id: string): WidgetKind | undefined => base(id)?.kind,
     listTitle: (id: string) => {
       const w = base(id);
-      return pending.titles[id]?.title ?? (w && "title" in w ? w.title : "");
+      return pending.titles[id]?.title ?? (w && "title" in w ? (w.title ?? "") : "");
     },
     items,
     budget,

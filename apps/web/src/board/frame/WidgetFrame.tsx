@@ -276,11 +276,7 @@ export function WidgetFrame(
             e.stopPropagation();
             props.onPointerDown(e, "resize");
           }}
-        >
-          <svg viewBox="0 0 10 10" aria-hidden="true">
-            <path d="M9.5 1.5 1.5 9.5M9.5 5.5 5.5 9.5" />
-          </svg>
-        </div>
+        />
       </Show>
     </article>
   );
@@ -298,4 +294,5 @@ export const frameParts = {
   tools: styles.tools,
   /** Keeps the tools showing without hover. */
   toolsPinned: styles.toolsPinned,
+  stat: styles.stat,
 };

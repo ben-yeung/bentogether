@@ -64,9 +64,11 @@
   --bg: var(--ing-shiso);
 }
 
+/* Rings are drawn inside the edge, over the border, so they never reach
+   into the gutter between widgets. */
 .frame:focus-visible {
   outline: 2px solid var(--shu);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 /* You're carrying it: it follows the pointer freely, lifted. */
@@ -88,7 +90,7 @@
 /* Someone else is carrying it or working in it: ring in their color. */
 .frame[data-ringed] {
   outline: 2px solid var(--ring);
-  outline-offset: 1px;
+  outline-offset: -2px;
   z-index: 20;
 }
 
@@ -132,15 +134,14 @@
 .frame[data-editing] {
   user-select: text;
   outline: 2px solid color-mix(in srgb, var(--lacquer) 35%, transparent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 /* ---------------------------------------------------------------- tools */
 
 /*
- * The toolbar lives in the bottom row, right of the byline and left of the
- * resize grip, so it never covers the content. It shows on hover or
- * keyboard focus.
+ * The toolbar lives in the bottom row, right of the byline and left of any
+ * stat, so it never covers the content. It shows on hover or keyboard focus.
  */
 .tools {
   display: flex;
@@ -340,8 +341,6 @@
   min-height: 2.2em;
   /* The toolbar shares this row; let it show in full. */
   overflow: visible;
-  /* Leave room for the resize grip. */
-  padding-right: 2.2em;
 }
 
 .typing {
@@ -365,20 +364,53 @@
   text-overflow: ellipsis;
 }
 
-/* The resize grip: hidden at rest, revealed on hover or keyboard focus.
-   Long strokes and a generous hit area reaching into the corner. */
+/* Counts and status ("4 votes", "2/6", "3 new") sit in the bottom-right
+   corner, clear of the byline; the tools show just to their left. */
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  flex: none;
+  margin-left: auto;
+}
+
+.stat:empty {
+  display: none;
+}
+
+.tools + .stat {
+  margin-left: 0;
+}
+
+/* The resize grip: an arc just inside the rounded corner, following its
+   curve, so it never sits on the footer. Hidden at rest, shown on hover
+   or keyboard focus; the hit area is the corner itself. */
 .resize {
+  --inset: 3px;
   position: absolute;
-  right: calc(var(--u) * 2);
-  bottom: calc(var(--u) * 2);
-  width: calc(var(--u) * 24);
-  height: calc(var(--u) * 24);
-  padding: calc(var(--u) * 3);
+  right: 0;
+  bottom: 0;
+  width: calc(var(--radius) + 4px);
+  height: calc(var(--radius) + 4px);
   border-radius: 0 0 var(--radius) 0;
   cursor: nwse-resize;
   color: color-mix(in srgb, var(--lacquer) 45%, transparent);
   opacity: 0;
-  transition: opacity 140ms var(--ease-soft);
+  transition:
+    opacity 140ms var(--ease-soft),
+    color 140ms var(--ease-soft);
+}
+
+.resize::after {
+  content: "";
+  position: absolute;
+  right: var(--inset);
+  bottom: var(--inset);
+  width: calc(var(--radius) - var(--inset));
+  height: calc(var(--radius) - var(--inset));
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  border-bottom-right-radius: calc(var(--radius) - var(--inset));
 }
 
 .frame:hover .resize,
@@ -388,20 +420,4 @@
 
 .resize:hover {
   color: var(--lacquer);
-}
-
-/* Two hairline strokes, thin at any size. */
-.resize svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.resize path {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.25px;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
 }
