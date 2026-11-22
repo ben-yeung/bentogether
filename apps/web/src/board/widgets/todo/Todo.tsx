@@ -228,7 +228,11 @@ export function Todo(props: WidgetProps) {
   );
 }
 
-/** One item: a checkbox, its text (click to edit), a grip and remove on hover. */
+/**
+ * One item: a checkbox and its text (click either to tick it), a grip, and
+ * edit and remove on hover. Editing the text is behind its own button, so a
+ * click meant to tick an item never opens the field.
+ */
 function Row(props: {
   item: TodoItem;
   readOnly: boolean;
@@ -240,6 +244,10 @@ function Row(props: {
   onEditing: (on: boolean) => void;
 }) {
   const [draft, setDraft] = createSignal<string | null>(null);
+
+  function toggle() {
+    if (!props.readOnly) props.onChange({ do: "check", itemId: props.item.id, done: !props.item.done });
+  }
 
   function startEdit() {
     if (props.readOnly || draft() !== null) return;
@@ -293,9 +301,7 @@ function Row(props: {
         aria-checked={props.item.done ? "true" : "false"}
         aria-label={props.item.text}
         aria-disabled={props.readOnly ? "true" : undefined}
-        onClick={() => {
-          if (!props.readOnly) props.onChange({ do: "check", itemId: props.item.id, done: !props.item.done });
-        }}
+        onClick={toggle}
         onKeyDown={(e) => {
           if (!props.readOnly && props.onKeyMove(e)) e.stopPropagation();
         }}
@@ -307,7 +313,13 @@ function Row(props: {
       <Show
         when={draft() !== null}
         fallback={
-          <span class={styles.text} data-nodrag={props.readOnly ? undefined : ""} onClick={startEdit}>
+          // The checkbox carries the label for screen readers; this is a bigger target for the pointer.
+          <span
+            class={styles.text}
+            data-nodrag={props.readOnly ? undefined : ""}
+            data-toggles={props.readOnly ? undefined : ""}
+            onClick={toggle}
+          >
             {props.item.text}
           </span>
         }
@@ -329,18 +341,31 @@ function Row(props: {
           }}
         />
       </Show>
-      <Show when={!props.readOnly}>
-        <button
-          type="button"
-          class={styles.removeItem}
-          aria-label={`Remove ${props.item.text}`}
-          onClick={() => props.onChange({ do: "remove", itemId: props.item.id })}
-        >
-          {/* A garbage can: lid with a handle, a tapered bin, two slats. */}
-          <svg viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M2.75 4.25h10.5M6.25 4.25V2.75h3.5v1.5M4.25 4.25l.7 8.6a1 1 0 0 0 1 .9h4.1a1 1 0 0 0 1-.9l.7-8.6M6.85 6.75v4.5M9.15 6.75v4.5" />
-          </svg>
-        </button>
+      <Show when={!props.readOnly && draft() === null}>
+        <span class={styles.itemTools}>
+          <button
+            type="button"
+            class={styles.itemTool}
+            aria-label={`Edit ${props.item.text}`}
+            onClick={startEdit}
+          >
+            {/* A pencil, as on poll options. */}
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M10.5 3.2l2.3 2.3M3.5 12.5l.6-2.7 7-7 2.1 2.1-7 7z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class={styles.itemTool}
+            aria-label={`Remove ${props.item.text}`}
+            onClick={() => props.onChange({ do: "remove", itemId: props.item.id })}
+          >
+            {/* A garbage can: lid with a handle, a tapered bin, two slats. */}
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M2.75 4.25h10.5M6.25 4.25V2.75h3.5v1.5M4.25 4.25l.7 8.6a1 1 0 0 0 1 .9h4.1a1 1 0 0 0 1-.9l.7-8.6M6.85 6.75v4.5M9.15 6.75v4.5" />
+            </svg>
+          </button>
+        </span>
       </Show>
     </li>
   );

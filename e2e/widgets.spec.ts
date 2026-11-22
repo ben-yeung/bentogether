@@ -183,6 +183,27 @@ test("deleting asks first; guests delete only what they added, the creator anyth
   await expect(pollB).toHaveCount(0);
 });
 
+test("to-do: clicking an item's text ticks it; its text is edited from the pencil", async ({ browser }) => {
+  const [a, b] = await twoAtTable(browser, "Ticks");
+  const list = await add(a, "To-do");
+  await list.getByLabel("Add an item").fill("Buy rice");
+  await list.getByLabel("Add an item").press("Enter");
+
+  // The text ticks and unticks it, for everyone; no field opens.
+  await list.getByText("Buy rice", { exact: true }).click();
+  await expect(b.getByRole("checkbox", { name: "Buy rice" })).toHaveAttribute("aria-checked", "true");
+  await expect(list.getByLabel("Item text")).toHaveCount(0);
+  await list.getByText("Buy rice", { exact: true }).click();
+  await expect(b.getByRole("checkbox", { name: "Buy rice" })).toHaveAttribute("aria-checked", "false");
+
+  // Editing is behind its own button.
+  await list.getByText("Buy rice", { exact: true }).hover();
+  await list.getByRole("button", { name: "Edit Buy rice" }).click();
+  await list.getByLabel("Item text").fill("Buy sushi rice");
+  await list.getByLabel("Item text").press("Enter");
+  await expect(b.getByRole("checkbox", { name: "Buy sushi rice" })).toHaveAttribute("aria-checked", "false");
+});
+
 test("a deleted widget comes back with Undo, for everyone, as it was", async ({ browser }) => {
   const [a, b] = await twoAtTable(browser, "Second thoughts");
   const list = await add(a, "To-do");
