@@ -16,17 +16,24 @@ export function App() {
         {(r) => <BoxPage id={(r() as { id: string }).id} />}
       </Match>
       <Match when={route().name === "missing"}>
-        <div class={styles.center}>
-          <HomeLink>
-            <Mark size={44} />
-          </HomeLink>
-          <h1 class={styles.heading}>Wrong bento.</h1>
-          <p>There's nothing at this address.</p>
-          <button type="button" class="btn btn-primary" onClick={() => navigate("/")}>
-            Go home
-          </button>
-        </div>
+        <Missing />
       </Match>
     </Switch>
+  );
+}
+
+function Missing() {
+  document.title = "Page not found · benTogether";
+  return (
+    <div class={styles.center}>
+      <HomeLink>
+        <Mark size={44} />
+      </HomeLink>
+      <h1 class={styles.heading}>Wrong bento.</h1>
+      <p>There's nothing at this address.</p>
+      <button type="button" class="btn btn-primary" onClick={() => navigate("/")}>
+        Go home
+      </button>
+    </div>
   );
 }

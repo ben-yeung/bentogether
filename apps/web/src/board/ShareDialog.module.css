@@ -256,3 +256,16 @@
   display: flex;
   justify-content: flex-end;
 }
+
+/* The link as plain text, selected, when the clipboard isn't allowed. */
+.linkManual {
+  width: 100%;
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+}
+
+/* Picked but not on: says so in the alarm color, not the quiet one. */
+.accessStatus[data-pending] {
+  color: var(--shu);
+}

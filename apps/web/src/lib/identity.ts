@@ -9,6 +9,7 @@ import {
 
 const DEVICE_KEY = "bentogether.device.v1";
 const NAMES_KEY = "bentogether.names.v1";
+const LAST_NAME_KEY = "bentogether.lastName.v1";
 
 /** Stable per device: lets your color stay yours across boxes. */
 export type Device = { clientId: string; hue: number };
@@ -66,6 +67,8 @@ export function rememberName(boxId: string, name: string) {
     // Keep the map small: newest 50 boxes.
     const trimmed = Object.fromEntries(Object.entries(all).slice(-50));
     localStorage.setItem(NAMES_KEY, JSON.stringify(trimmed));
+    // The next bento you make or join starts with it.
+    localStorage.setItem(LAST_NAME_KEY, name.slice(0, NAME_MAX));
   } catch {
     // Not persisted; you'll be asked again next visit.
   }
@@ -85,8 +88,21 @@ export function takeHandedOffName(): string | null {
   return name;
 }
 
-/** A friendly default, so joining is one keystroke. */
+/**
+ * A friendly default, so joining is one keystroke: the name you used last
+ * on this device, or a random ingredient the first time.
+ */
 export function suggestName(): string {
+  try {
+    const last = localStorage.getItem(LAST_NAME_KEY)?.trim();
+    if (last) return last;
+    // Before the last name was kept on its own: the newest per-bento one.
+    const all = JSON.parse(localStorage.getItem(NAMES_KEY) ?? "{}") as Record<string, string>;
+    const newest = Object.values(all).at(-1)?.trim();
+    if (newest) return newest;
+  } catch {
+    // fall through
+  }
   return INGREDIENT_NAMES[Math.floor(Math.random() * INGREDIENT_NAMES.length)]!;
 }
 

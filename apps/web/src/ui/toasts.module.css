@@ -21,6 +21,30 @@
   text-align: center;
 }
 
+/* A toast with a button (Undo) takes clicks; the stack itself doesn't. */
+.toast[data-action] {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-right: 0.4rem;
+  pointer-events: auto;
+}
+
+.action {
+  padding: 0.3rem 0.8rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--rice) 18%, transparent);
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.action:hover {
+  background: color-mix(in srgb, var(--rice) 28%, transparent);
+}
+
 .toast[data-tone="error"] {
   background: var(--danger);
   color: #fff;

@@ -40,6 +40,10 @@
     opacity: 0;
     transform: translateY(-4px) scale(0.97);
   }
+  /* Opaque early, so the page never shows through mid-arrival. */
+  40% {
+    opacity: 1;
+  }
 }
 
 .option {

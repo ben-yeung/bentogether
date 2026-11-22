@@ -173,7 +173,7 @@ type Pending = {
  * null, an object where there was null, and arrays are set whole: merging
  * an array by position would keep items that were removed.
  */
-function mergeInto(target: object, next: object) {
+function mergeInto(target: object, next: object, keep: ReadonlySet<string> = NOTHING) {
   const t = target as Record<string, unknown>;
   for (const [key, value] of Object.entries(next)) {
     const cur = t[key];
@@ -181,7 +181,14 @@ function mergeInto(target: object, next: object) {
     if (objects(value) && objects(cur)) mergeInto(cur as object, value as object);
     else if (cur !== value) t[key] = value;
   }
+  // `next` is the whole record: what it no longer has is gone (say, someone
+  // who cleared their free times), except fields the caller keeps on purpose.
+  for (const key of Object.keys(t)) if (!(key in next) && !keep.has(key)) delete t[key];
 }
+
+const NOTHING: ReadonlySet<string> = new Set();
+/** A note with your typing in flight keeps the text you know (see `merge`). */
+const OWN_TEXT: ReadonlySet<string> = new Set(["text", "tv"]);
 
 export type BoxSession = ReturnType<typeof createSession>["session"];
 
@@ -312,7 +319,7 @@ function createSession(boxId: string, identity: () => Hello) {
     }
     if (w.kind === "note" && docs.has(w.id)) {
       const { text: _text, tv: _tv, ...rest } = w;
-      mergeInto(cur, rest);
+      mergeInto(cur, rest, OWN_TEXT);
     } else mergeInto(cur, w);
   }
 
@@ -785,6 +792,11 @@ function createSession(boxId: string, identity: () => Hello) {
     yield sendOp({ type: "delete", id });
   });
 
+  /** Brings back a widget you just deleted (the server allows `UNDO_MS`). */
+  function restore(id: string): Promise<void> {
+    return sendOp({ type: "restore", id });
+  }
+
   // -------------------------------------------------------------- typing
 
   /** A note's text as the server last confirmed it, and its version. */
@@ -1078,6 +1090,11 @@ function createSession(boxId: string, identity: () => Hello) {
     if (socket.send({ t: "presence", presence })) sentPresence = json;
   }
 
+  /** Your color here; the server keeps it apart from everyone else's. */
+  function recolorSelf(hue: number) {
+    socket.send({ t: "recolor", hue });
+  }
+
   function rename(name: string) {
     socket.send({ t: "rename", name });
   }
@@ -1145,6 +1162,7 @@ function createSession(boxId: string, identity: () => Hello) {
     add,
     addNote: (color: NoteColor) => add("note", color),
     move,
+    restore,
     changeItem,
     changeBudget,
     change,
@@ -1164,6 +1182,7 @@ function createSession(boxId: string, identity: () => Hello) {
     watchText,
     setPresence,
     rename,
+    recolorSelf,
   };
   return { session: api, ready };
 }

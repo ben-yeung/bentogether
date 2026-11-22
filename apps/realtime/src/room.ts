@@ -16,6 +16,7 @@ import {
   transformText,
   DEFAULT_ACCESS,
   NOTE_TEXT_MAX,
+  UNDO_MS,
   type Access,
   type AssignableRole,
   type BoxMeta,
@@ -72,6 +73,11 @@ export class Room {
   readonly peers = new Map<string, Peer>();
   /** Recent typed edits per note, oldest first (see TEXT_HISTORY). */
   private history = new Map<string, TextEntry[]>();
+  /**
+   * Widgets deleted in the last `UNDO_MS`, so whoever deleted one can bring
+   * it back. Memory only, like `history`.
+   */
+  private trash = new Map<string, { widget: Widget; by: string; at: number; history?: TextEntry[] }>();
   /** Roles the owner gave, by device (clientId). Persisted by the host. */
   readonly roles = new Map<string, AssignableRole>();
 
@@ -171,6 +177,18 @@ export class Room {
     peer.name = name;
     return [
       { target: { to: "all" }, msg: { t: "peer", sid, name, hue: peer.hue, role: peer.role } },
+      ...(peer.role === "owner" ? this.credit(peer) : []),
+    ];
+  }
+
+  /** A new color for someone already here, kept apart from the others' as on joining. */
+  recolor(sid: string, hue: number): Outgoing[] {
+    const peer = this.peers.get(sid);
+    if (!peer) return [];
+    const taken = [...this.peers.values()].filter((p) => p.sid !== sid).map((p) => p.hue);
+    peer.hue = separateHue(hue, taken);
+    return [
+      { target: { to: "all" }, msg: { t: "peer", sid, name: peer.name, hue: peer.hue, role: peer.role } },
       ...(peer.role === "owner" ? this.credit(peer) : []),
     ];
   }
@@ -416,10 +434,36 @@ export class Room {
         if (!mayDelete(w, author?.role ?? "viewer", voterKey(author?.clientId ?? sid, this.meta.id)))
           return reject("forbidden", "Only the bento's creator or whoever added this widget can delete it.");
         if (this.typists(op.id).some((p) => p.sid !== sid)) return reject("busy", "Someone is typing here.");
+        for (const [id, gone] of this.trash) if (t - gone.at > UNDO_MS) this.trash.delete(id);
+        const history = this.history.get(op.id);
+        this.trash.set(op.id, {
+          widget: w,
+          by: voterKey(author?.clientId ?? sid, this.meta.id),
+          at: t,
+          ...(history ? { history } : {}),
+        });
         this.widgets.delete(op.id);
         this.history.delete(op.id);
         remove = [op.id];
         upsert = this.relayout();
+        break;
+      }
+      case "restore": {
+        const gone = this.trash.get(op.id);
+        if (!gone || t - gone.at > UNDO_MS) {
+          this.trash.delete(op.id);
+          return reject("not_found", "Too late to bring that back.");
+        }
+        if (gone.by !== voterKey(author?.clientId ?? sid, this.meta.id))
+          return reject("forbidden", "Only whoever deleted it can bring it back.");
+        if (this.widgets.has(op.id)) return reject("exists", "That widget already exists.");
+        if (this.widgets.size >= MAX_WIDGETS) return reject("limit", "This bento is full.");
+        this.trash.delete(op.id);
+        const w = { ...gone.widget, updatedAt: t } as Widget;
+        this.widgets.set(w.id, w);
+        if (gone.history) this.history.set(w.id, gone.history);
+        // Back where it was; anything that moved into its spot makes room.
+        upsert = this.relayout(w.id);
         break;
       }
     }
@@ -504,6 +548,7 @@ export class Room {
     const remove = [...this.widgets.keys()];
     this.widgets.clear();
     this.history.clear();
+    this.trash.clear();
     for (const id of remove) persist.removed.add(id);
     return {
       out: [{ target: { to: "all" }, msg: { t: "applied", by: sid, opId, upsert: [], remove } }],

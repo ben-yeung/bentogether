@@ -55,15 +55,43 @@ function ShareBody(props: {
   const [copied, setCopied] = createSignal(false);
 
   const fail = (err: Error) => props.toast(err.message, "error");
+  /** "Password protected" picked, but no password saved: the bento is still open. */
+  const pendingPassword = () => mode() === "password" && s().access().mode !== "password";
+
+  /** The clipboard said no: the link shows as selected text instead. */
+  const [manual, setManual] = createSignal(false);
+
+  function done() {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(link());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      done();
     } catch {
-      props.toast("Couldn't copy. Select the link and copy it instead.", "error");
+      setManual(true);
     }
+  }
+
+  /** Shown when copying failed: selected, and one older way of copying tried. */
+  function selectLink(el: HTMLInputElement) {
+    setTimeout(() => {
+      el.focus();
+      el.select();
+      let ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch {
+        // Not allowed here either.
+      }
+      if (ok) {
+        done();
+        // Copied after all: the plain field isn't needed.
+        setManual(false);
+      } else props.toast("Couldn't copy by itself. The link is selected, ready to copy.", "error");
+    }, 0);
   }
 
   function chooseMode(next: "link" | "password") {
@@ -123,6 +151,16 @@ function ShareBody(props: {
           </Show>
         </span>
       </button>
+      <Show when={manual()}>
+        <input
+          ref={selectLink}
+          class={["field", styles.linkManual]}
+          readonly
+          value={link()}
+          aria-label="Bento link"
+          onFocus={(e) => e.currentTarget.select()}
+        />
+      </Show>
       <span class="visually-hidden" role="status">
         {copied() ? "Link copied" : ""}
       </span>
@@ -165,7 +203,7 @@ function ShareBody(props: {
 
       <section class={styles.section} aria-labelledby="share-access">
         <h3 id="share-access" class={styles.sectionLabel}>
-          Bento Privacy
+          Bento privacy
         </h3>
         <div class={styles.accessRow}>
           <span class={styles.accessIcon} data-mode={mode()} aria-hidden="true">
@@ -191,12 +229,12 @@ function ShareBody(props: {
             disabled={!owner()}
             onChange={chooseMode}
           />
-          <span class={styles.accessStatus}>
+          <span class={styles.accessStatus} data-pending={pendingPassword() || undefined}>
             {mode() === "password"
-              ? s().access().mode === "password"
-                ? "A password is required for new visitors."
-                : "Set a password to turn this on."
-              : "Anyone with the link can join."}
+              ? pendingPassword()
+                ? "Not on yet: set a password below."
+                : "New visitors need the password."
+              : "No password needed."}
           </span>
         </div>
 

@@ -192,6 +192,42 @@ export function FreeTimes(props: WidgetProps) {
     addEventListener("pointercancel", end);
   }
 
+  // ---------------------------------------------------------- keyboard
+
+  /** The one cell in the tab order; arrows move it, Space or Enter flips your half hour. */
+  const [cursor, setCursor] = createSignal({ day: 0, row: FIRST_VISIBLE_ROW });
+
+  function onCellKey(e: KeyboardEvent, dayIndex: number, row: number) {
+    const move = (dd: number, dr: number) => {
+      e.preventDefault();
+      const day = Math.min(FREE_DAYS - 1, Math.max(0, dayIndex + dd));
+      const r = Math.min(END_ROW - 1, Math.max(FIRST_ROW, row + dr));
+      setCursor({ day, row: r });
+      wrap?.querySelector<HTMLElement>(`td[data-day="${day}"][data-r="${r}"]`)?.focus();
+    };
+    switch (e.key) {
+      case "ArrowLeft":
+        return move(-1, 0);
+      case "ArrowRight":
+        return move(1, 0);
+      case "ArrowUp":
+        return move(0, -1);
+      case "ArrowDown":
+        return move(0, 1);
+      case " ":
+      case "Enter": {
+        e.preventDefault();
+        const slot = cellSlot(startDay(), days()[dayIndex]!, row);
+        if (props.readOnly || slot < 0) return;
+        const next = [...mine()];
+        next[slot] = !next[slot];
+        setPaint(next);
+        void change({ do: "setSlots", slots: bitsToSlots(next) }).finally(() => setPaint(null));
+        return;
+      }
+    }
+  }
+
   // ------------------------------------------------------------- labels
 
   const dayLabel = (day: Day) =>
@@ -291,6 +327,7 @@ export function FreeTimes(props: WidgetProps) {
         <div
           class={styles.scroller}
           data-nodrag
+          data-scroll
           onScroll={() => setHover(null)}
           onPointerLeave={() => setHover(null)}
           ref={(el) => {
@@ -333,13 +370,16 @@ export function FreeTimes(props: WidgetProps) {
                             data-all-end={all() && !allAt(below())}
                             data-readonly={props.readOnly}
                             style={{ "--heat": answered() ? who().length / answered() : 0 }}
+                            tabindex={cursor().day === dayIndex() && cursor().row === row ? 0 : -1}
                             aria-label={`${dayLabel(day)} ${timeLabel(row)}: ${
                               who().length === 0
                                 ? "nobody free"
                                 : who()
                                     .map((p) => p.name)
                                     .join(", ") + (all() ? " (everyone)" : "")
-                            }`}
+                            }${isMine() ? ". You're free" : ""}`}
+                            onFocus={() => setCursor({ day: dayIndex(), row })}
+                            onKeyDown={(e) => onCellKey(e, dayIndex(), row)}
                             onPointerMove={(e) => showHover(e, dayIndex(), row)}
                             onPointerDown={(e) => {
                               setHover(null);
@@ -347,7 +387,8 @@ export function FreeTimes(props: WidgetProps) {
                             }}
                           >
                             <span class={styles.lanes} aria-hidden="true">
-                              <For each={lanes()}>
+                              {/* Keyed by person: a change keeps every cell's lanes instead of rebuilding them. */}
+                              <For each={lanes()} keyed={(l) => l.key}>
                                 {(l, i) => {
                                   const on = () => laneOn(i(), slot());
                                   return (
@@ -356,7 +397,7 @@ export function FreeTimes(props: WidgetProps) {
                                       data-on={on()}
                                       data-top={on() && !laneOn(i(), above())}
                                       data-end={on() && !laneOn(i(), below())}
-                                      style={on() ? { "--c": personColor(l.hue) } : undefined}
+                                      style={on() ? { "--c": personColor(l().hue) } : undefined}
                                     />
                                   );
                                 }}
@@ -414,6 +455,7 @@ export function FreeTimes(props: WidgetProps) {
         width={props.rect.w}
         author={author()}
         colorLabel="Free times color"
+        compactColors
         onError={props.onError}
         info={
           <>

@@ -260,6 +260,8 @@ export function Footer(props: {
   viewerTools?: JSX.Element;
   /** Keep the tools showing (say, while a mode they control is on). */
   pinned?: boolean;
+  /** Fold the swatches into one dot at any width (a busy footer). */
+  compactColors?: boolean;
 }) {
   const s = () => props.session;
   return (
@@ -272,7 +274,7 @@ export function Footer(props: {
           {props.tools}
           <ColorTools
             color={s().color(props.id)}
-            compact={props.width <= COMPACT_TOOLS_MAX_W}
+            compact={!!props.compactColors || props.width <= COMPACT_TOOLS_MAX_W}
             label={props.colorLabel}
             onPick={(c) =>
               s()

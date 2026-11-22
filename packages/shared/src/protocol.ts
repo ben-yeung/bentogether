@@ -7,7 +7,7 @@ import type { TextOp } from "./text";
  * WebSocket. JSON messages, discriminated by `t`. Everything a client sends
  * is validated with these schemas before the server acts on it.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 // ---------------------------------------------------------------- primitives
 
@@ -19,6 +19,12 @@ export type NoteColor = (typeof NOTE_COLORS)[number];
 export const NoteColorSchema = v.picklist(NOTE_COLORS);
 
 export const NOTE_TEXT_MAX = 2000;
+
+/**
+ * How long a deleted widget can be brought back by whoever deleted it. Kept
+ * in the box's memory only: if it sleeps in between, undo says it's too late.
+ */
+export const UNDO_MS = 15_000;
 
 /** Text size of a note, shared by everyone so line wraps match. */
 export const TEXT_SIZES = ["s", "m", "l", "xl"] as const;
@@ -570,6 +576,8 @@ export const OpSchema = v.variant("type", [
   v.object({ type: v.literal("budget"), id: Id, change: BudgetChangeSchema }),
   v.object({ type: v.literal("change"), id: Id, change: WidgetChangeSchema }),
   v.object({ type: v.literal("delete"), id: Id }),
+  /** Brings back a widget you deleted in the last `UNDO_MS`, as it was. */
+  v.object({ type: v.literal("restore"), id: Id }),
   /**
    * Typing in a note: an edit made against version `base` of its text. The
    * server moves it past anything applied since, so people can type at once.
@@ -658,6 +666,8 @@ export const ClientMessageSchema = v.variant("t", [
   v.object({ t: v.literal("op"), opId: v.pipe(v.string(), v.maxLength(40)), op: OpSchema }),
   v.object({ t: v.literal("presence"), presence: PresenceSchema }),
   v.object({ t: v.literal("rename"), name: NameSchema }),
+  /** Your color in this bento (kept apart from everyone else's, like on joining). */
+  v.object({ t: v.literal("recolor"), hue: HueSchema }),
   /** Rename the bento itself. Owner only. */
   v.object({ t: v.literal("retitle"), opId: v.pipe(v.string(), v.maxLength(40)), title: TitleSchema }),
   /** Change who can get in and what newcomers can do. Owner only. */

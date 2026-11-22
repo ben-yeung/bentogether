@@ -12,6 +12,7 @@ import {
 import { RemoteCursors, SelfTag } from "../cursors/Cursors";
 import { cursorCss, oklchToHex } from "../cursors/cursorImage";
 import type { PointerVariant } from "../cursors/Pointer";
+import { fitToScreen } from "../lib/fit";
 import { useMedia } from "../lib/media";
 import { isDark } from "../lib/theme";
 import type { WidgetProps } from "./frame/WidgetFrame";
@@ -43,6 +44,8 @@ export function Board(props: {
   session: BoxSession;
   onError: (message: string) => void;
   onNotice?: (message: string) => void;
+  /** A widget you deleted is gone; `undo` brings it back for a few seconds. */
+  onDeleted?: (what: string, undo: () => Promise<void>) => void;
 }) {
   const s = () => props.session;
   let boardEl!: HTMLDivElement;
@@ -159,9 +162,11 @@ export function Board(props: {
   function onBoardMove(e: PointerEvent) {
     const p = boardPoint(e);
     if (selfTag) selfTag.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`;
-    setInside(true);
-    setFlipTag(p.x + 170 > width());
     const t = e.target as Element;
+    // Your own tag steps aside over buttons and the delete card, so it
+    // never covers the label of what you're about to press.
+    setInside(!t.closest("button, [role=alertdialog], [data-palette]"));
+    setFlipTag(p.x + 170 > width());
     setHover(
       t.closest("textarea, input[type=text], input:not([type])")
         ? "ibeam"
@@ -239,6 +244,94 @@ export function Board(props: {
     addEventListener("pointercancel", end);
   }
 
+  /** A widget you deleted: offer to bring it back. */
+  function deleted(id: string, what: string) {
+    const session = s();
+    props.onDeleted?.(what, session.restore.bind(null, id));
+  }
+
+  // ------------------------------------------------------ keyboard carry
+
+  /** A widget picked up with the keyboard: previewed like a drag, saved on drop. */
+  function keyCarry(id: string, rect: Rect | null, mode: "move" | "resize"): Rect | null {
+    if (!rect) {
+      setLocal(null);
+      s().setPresence({ drag: null, action: null });
+      return null;
+    }
+    const kind = s().kind(id);
+    if (!kind) return null;
+    const r = clampFor(kind, { ...rect, x: Math.max(0, rect.x), y: Math.max(0, rect.y) });
+    setLocal({ id, mode, rect: r, carry: null });
+    s().setPresence({ drag: { id, ...r }, action: mode === "move" ? "moving" : "resizing" });
+    return r;
+  }
+
+  // ------------------------------------------------------- scroll hints
+
+  /*
+   * Lists inside widgets scroll without a scrollbar (a bar would steal width
+   * and change line wraps between viewers). So that nothing hides silently,
+   * every `[data-scroll]` gets `data-more-above` / `data-more-below` while
+   * there's more to see, and base.css fades that edge.
+   */
+  function hint(el: HTMLElement) {
+    const above = el.scrollTop > 1;
+    const below = el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+    if (above !== el.hasAttribute("data-more-above")) el.toggleAttribute("data-more-above", above);
+    if (below !== el.hasAttribute("data-more-below")) el.toggleAttribute("data-more-below", below);
+  }
+
+  onSettled(() => {
+    let frame = 0;
+    const all = () => {
+      frame = 0;
+      for (const el of boardEl.querySelectorAll<HTMLElement>("[data-scroll]")) hint(el);
+    };
+    const later = () => {
+      if (!frame) frame = requestAnimationFrame(all);
+    };
+    const onScroll = (e: Event) => {
+      const el = e.target as HTMLElement;
+      if (el.hasAttribute?.("data-scroll")) hint(el);
+    };
+    const mo = new MutationObserver((records) => {
+      later();
+      // Something you just added to a list (typing in its add field) is
+      // scrolled into view; other people's additions leave your scroll alone.
+      const typing = document.activeElement;
+      if (!(typing instanceof HTMLInputElement || typing instanceof HTMLTextAreaElement)) return;
+      for (const r of records) {
+        const list = r.target as Element;
+        if (r.type !== "childList" || !list.hasAttribute?.("data-scroll")) continue;
+        if (!list.closest("[data-widget]")?.contains(typing)) continue;
+        const added = [...r.addedNodes].findLast((n): n is HTMLElement => n instanceof HTMLElement);
+        // Next frame: once its row (and anything that moved with it) is laid out.
+        if (added)
+          requestAnimationFrame(() =>
+            added.scrollIntoView({ block: "nearest", behavior: reduceMotion() ? "auto" : "smooth" }),
+          );
+      }
+    });
+    mo.observe(boardEl, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ["style"],
+    });
+    const ro = new ResizeObserver(later);
+    ro.observe(boardEl);
+    boardEl.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    later();
+    return () => {
+      mo.disconnect();
+      ro.disconnect();
+      cancelAnimationFrame(frame);
+      boardEl.removeEventListener("scroll", onScroll, { capture: true });
+    };
+  });
+
   // ------------------------------------------------------------- render
 
   const ghost = createMemo(() => {
@@ -247,7 +340,7 @@ export function Board(props: {
   });
 
   return (
-    <div class={styles.scroller}>
+    <div class={styles.scroller} data-fit={fitToScreen()}>
       <div
         ref={boardEl}
         class={styles.board}
@@ -296,8 +389,10 @@ export function Board(props: {
                 return theirs()?.hue ?? typistHue();
               },
               onPointerDown: (e, mode) => beginDrag(e, id, mode),
+              onKeyCarry: (rect, mode) => keyCarry(id, rect, mode),
               onError: props.onError,
               onNotice: props.onNotice,
+              onDeleted: (what) => deleted(id, what),
               get readOnly() {
                 return !s().canEdit();
               },

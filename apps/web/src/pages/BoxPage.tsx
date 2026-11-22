@@ -2,6 +2,7 @@ import { createEffect, createMemo, createSignal, Errored, Loading, Match, Show, 
 import { Board } from "../board/Board";
 import { Toolbar } from "../board/Toolbar";
 import { AddWidget } from "../board/AddWidget";
+import { FitToggle } from "../board/FitToggle";
 import { NameTaken, openSession, PasswordRequired, type BoxSession } from "../board/session";
 import { HomeLink, Lockup, Mark } from "../brand/Logo";
 import { BoxNotFound, getBox, Outdated, OverCapacity, Unreachable } from "../lib/api";
@@ -20,7 +21,8 @@ import { rememberBox } from "../lib/recent";
 import { ownerTokenFor } from "../lib/owner";
 import { viewingLabel, widgetsLabel } from "../lib/format";
 import { navigate } from "../lib/router";
-import { createToaster } from "../ui/toasts";
+import { createToaster, type Toaster } from "../ui/toasts";
+import { UNDO_MS } from "@bentogether/shared";
 import { Splash } from "../ui/Splash";
 import { LoadingLine } from "../ui/LoadingLine";
 import styles from "./pages.module.css";
@@ -108,13 +110,13 @@ function BoxRoom(props: {
   name: string;
   password: string | null;
   onRename: (name: string) => void;
-  toast: (message: string, tone?: "info" | "error") => void;
+  toast: Toaster;
 }) {
-  const device = loadDevice();
-  // The socket's hello reads these on every (re)connect.
+  // The socket's hello reads these on every (re)connect; the device is read
+  // fresh, so a color changed in Settings survives a reconnect.
   const session = createMemo(() =>
     openSession(props.id, () => ({
-      ...device,
+      ...loadDevice(),
       name: props.name,
       ownerToken: ownerTokenFor(props.id),
       password: props.password ?? undefined,
@@ -134,11 +136,7 @@ function BoxRoom(props: {
   );
 }
 
-function BoxView(props: {
-  session: BoxSession;
-  onRename: (name: string) => void;
-  toast: (message: string, tone?: "info" | "error") => void;
-}) {
+function BoxView(props: { session: BoxSession; onRename: (name: string) => void; toast: Toaster }) {
   // Compute extracts plain values; apply only does the side effect. Reading
   // the store proxy inside apply is what STRICT_READ_UNTRACKED flags.
   createEffect(
@@ -183,10 +181,19 @@ function BoxView(props: {
         session={props.session}
         onError={(m) => props.toast(m, "error")}
         onNotice={(m) => props.toast(m, "info")}
+        onDeleted={(what, undo) =>
+          props.toast(`${what[0]!.toUpperCase()}${what.slice(1)} deleted.`, "info", {
+            label: "Undo",
+            // A little under the server's window, so Undo never shows when it can't work.
+            ms: UNDO_MS - 2000,
+            run: () => void undo().catch((err: Error) => props.toast(err.message, "error")),
+          })
+        }
       />
       <Show when={props.session.canEdit()}>
         <AddWidget session={props.session} toast={props.toast} />
       </Show>
+      <FitToggle />
     </main>
   );
 }
@@ -319,6 +326,13 @@ function BoxError(props: { error: unknown; onRetry: () => void }) {
           : props.error instanceof Unreachable
             ? "Can't reach the bento."
             : "Something went wrong.";
+  // Names the problem in the tab and history, not just "benTogether".
+  createEffect(
+    () => `${missing() ? "Bento not found" : heading().replace(/\.$/, "")} · benTogether`,
+    (title) => {
+      document.title = title;
+    },
+  );
   return (
     <div class={styles.center}>
       <HomeLink>

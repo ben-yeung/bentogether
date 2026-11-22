@@ -92,6 +92,39 @@
   z-index: 20;
 }
 
+/* Just added: a brief ring so your eye finds it. */
+.frame[data-fresh] {
+  animation: fresh 1.4s var(--ease-soft);
+}
+
+@keyframes fresh {
+  0%,
+  60% {
+    outline: 3px solid var(--shu);
+    outline-offset: 3px;
+  }
+  100% {
+    outline: 3px solid transparent;
+    outline-offset: 1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame[data-fresh] {
+    animation: none;
+    outline: 3px solid var(--shu);
+    outline-offset: 3px;
+  }
+}
+
+/* Picked up with the keyboard: lifted, and the ring says it's held. */
+.frame[data-held] {
+  box-shadow: var(--lift-shadow);
+  outline: 2px dashed var(--lacquer);
+  outline-offset: 3px;
+  z-index: 30;
+}
+
 .frame[data-mode="remote-lifted"] {
   box-shadow: var(--lift-shadow);
 }
@@ -155,6 +188,13 @@
 .frame:focus-within .remove {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Drawn small, but the target is at least 24px (WCAG 2.2 target size). */
+.remove::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, calc((var(--u) * 22 - 24px) / 2));
 }
 
 .remove svg {

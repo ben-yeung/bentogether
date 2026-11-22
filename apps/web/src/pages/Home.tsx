@@ -100,7 +100,7 @@ export function Home() {
                 />
                 <Switch
                   label="Auto-pack"
-                  hint="Fill gaps automatically, or place notes freely."
+                  hint="Fill gaps automatically, or place widgets freely."
                   checked={options().autoPack}
                   onChange={(v) => setOptions((o) => ({ ...o, autoPack: v }))}
                 />
@@ -181,6 +181,10 @@ function RecentBoxes() {
                 // A blank line until the counts arrive keeps rows the same height.
                 meta={box().widgetCount === undefined ? "\u00a0" : widgetsLabel(box().widgetCount!)}
                 hues={MOCK_PRESENCE ? mockHues(box().id) : (box().hues ?? [])}
+                onForget={() => {
+                  forgetBox(box().id);
+                  setRecent((list) => list.filter((b) => b.id !== box().id));
+                }}
               />
             )}
           </For>
@@ -197,9 +201,11 @@ function BoxLink(props: {
   /** Colors of who's on it right now. */
   hues: number[];
   createdAt?: number | undefined;
+  /** Drops it from this list only; the bento itself is untouched. */
+  onForget: () => void;
 }) {
   return (
-    <li>
+    <li class={styles.boxRow}>
       <a
         class={styles.boxLink}
         href={`/b/${props.id}`}
@@ -226,6 +232,17 @@ function BoxLink(props: {
           )}
         </Show>
       </a>
+      <button
+        type="button"
+        class={["icon-btn", styles.boxForget]}
+        aria-label={`Remove ${props.title} from this list`}
+        title="Remove from this list"
+        onClick={() => props.onForget()}
+      >
+        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
+      </button>
     </li>
   );
 }

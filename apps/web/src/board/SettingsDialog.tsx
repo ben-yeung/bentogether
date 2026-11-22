@@ -1,6 +1,7 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { NAME_MAX, sameName } from "@bentogether/shared";
-import { personVars } from "../lib/identity";
+import { NAME_MAX, PERSON_HUES, personTone, sameName } from "@bentogether/shared";
+import { personVars, saveHue } from "../lib/identity";
+import nameStyles from "../ui/NameField.module.css";
 import { setThemePref, themePref, type ThemePref } from "../lib/theme";
 import { Dialog } from "../ui/Dialog";
 import { Switch } from "../ui/Switch";
@@ -32,6 +33,7 @@ export function SettingsDialog(props: {
   const s = () => props.session;
   const fail = (err: Error) => props.toast(err.message, "error");
   const me = createMemo(() => s().peers[s().server.sid]);
+  const [picking, setPicking] = createSignal(false);
 
   // Saved when you leave the field or press Enter; an empty name reverts.
   function commitName(input: HTMLInputElement) {
@@ -57,7 +59,15 @@ export function SettingsDialog(props: {
             Your name <span class={styles.sectionNote}>(just for this bento)</span>
           </label>
           <span class={styles.nameRow}>
-            <span class={styles.nameDot} style={personVars(me()?.hue ?? 0)} aria-hidden="true" />
+            <button
+              type="button"
+              class={styles.nameDot}
+              style={personVars(me()?.hue ?? 0)}
+              aria-label="Your color"
+              aria-expanded={picking() ? "true" : "false"}
+              title="Your color"
+              onClick={() => setPicking((v) => !v)}
+            />
             <input
               id="settings-name"
               class={["field", styles.nameInput]}
@@ -73,6 +83,28 @@ export function SettingsDialog(props: {
               }}
             />
           </span>
+          <Show when={picking()}>
+            <div class={styles.hues} role="radiogroup" aria-label="Choose your color">
+              <For each={PERSON_HUES}>
+                {(hue) => (
+                  <button
+                    type="button"
+                    role="radio"
+                    class={nameStyles.swatch}
+                    style={personVars(hue)}
+                    aria-checked={personTone(me()?.hue ?? 0).h === hue ? "true" : "false"}
+                    aria-label={`Color ${hue}°`}
+                    onClick={() => {
+                      // Kept for next time too, like the color you pick on the home screen.
+                      saveHue(hue);
+                      s().recolorSelf(hue);
+                      setPicking(false);
+                    }}
+                  />
+                )}
+              </For>
+            </div>
+          </Show>
         </section>
         <section class={styles.section} aria-label="This bento">
           <h3 class={styles.sectionLabel}>
@@ -90,7 +122,7 @@ export function SettingsDialog(props: {
           />
           <Switch
             label="Auto-pack"
-            hint="Fill gaps automatically, or place notes freely."
+            hint="Fill gaps automatically, or place widgets freely."
             checked={s().options().autoPack}
             disabled={!s().isOwner()}
             onChange={(v) => s().setOptions({ autoPack: v }).catch(fail)}
@@ -124,7 +156,7 @@ export function SettingsDialog(props: {
               disabled={!s().isOwner() || s().ids().length === 0}
               onClick={() => props.onClear()}
             >
-              Clear Bento
+              Clear bento
             </button>
             <p class={styles.note}>
               {!s().isOwner()
@@ -141,7 +173,7 @@ export function SettingsDialog(props: {
               disabled={!s().isOwner()}
               onClick={() => props.onDelete()}
             >
-              Delete Bento
+              Delete bento
             </button>
             <p class={styles.note}>
               {s().isOwner()
@@ -202,7 +234,7 @@ export function ClearBentoDialog(props: {
             disabled={busy()}
             onClick={() => void clear()}
           >
-            {busy() ? "Clearing…" : "Clear Bento"}
+            {busy() ? "Clearing…" : "Clear bento"}
           </button>
         </div>
       </div>
@@ -258,7 +290,7 @@ export function DeleteBentoDialog(props: {
             disabled={busy()}
             onClick={() => void remove()}
           >
-            {busy() ? "Deleting…" : "Delete Bento"}
+            {busy() ? "Deleting…" : "Delete bento"}
           </button>
         </div>
       </div>

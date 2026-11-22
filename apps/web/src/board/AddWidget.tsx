@@ -27,10 +27,25 @@ export function AddWidget(props: {
     setAdding(true);
     setOpen(false);
     const color = WIDGET_BY_KIND[kind].firstColor ?? NOTE_COLORS[s().ids().length % NOTE_COLORS.length]!;
-    s()
-      .add(kind, color)
-      .catch((err: Error) => props.toast(err.message, "error"))
-      .finally(() => setAdding(false));
+    const before = new Set(s().ids());
+    const saved = s().add(kind, color);
+    // It shows at once; bring it into view and hand it focus, so a widget
+    // that lands below the fold doesn't look like nothing happened.
+    requestAnimationFrame(() => {
+      const id = s()
+        .ids()
+        .find((i) => !before.has(i));
+      const el = id ? document.querySelector<HTMLElement>(`[data-widget="${id}"]`) : null;
+      if (!el) return;
+      // Instant: a smooth scroll would be cut short when a note's text field takes focus.
+      el.scrollIntoView({ block: "nearest" });
+      el.focus({ preventScroll: true });
+      el.dataset.fresh = "";
+      setTimeout(() => delete el.dataset.fresh, 1400);
+      // A note opens for typing straight away.
+      if (kind === "note") el.click();
+    });
+    saved.catch((err: Error) => props.toast(err.message, "error")).finally(() => setAdding(false));
   }
 
   return (

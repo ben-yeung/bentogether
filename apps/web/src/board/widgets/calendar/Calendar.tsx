@@ -114,6 +114,15 @@ export function Calendar(props: WidgetProps) {
   });
   const eventsOn = (date: string) => byDay().get(date) ?? [];
 
+  /** The month cell that takes Tab: the one you last moved to, else today, else the 1st. */
+  const [picked, setPicked] = createSignal<string | null>(null);
+  const focusDay = createMemo(() => {
+    const grid = monthGrid(view().anchor);
+    const p = picked();
+    if (p && grid.includes(p)) return p;
+    return sameMonth(today(), view().anchor) ? today() : view().anchor.slice(0, 8) + "01";
+  });
+
   // ------------------------------------------------------------- form
 
   const [draft, setDraft] = createSignal<Draft | null>(null);
@@ -144,9 +153,12 @@ export function Calendar(props: WidgetProps) {
   }
 
   function closeForm() {
+    setNameMissing(false);
     setDraft(null);
     s().setPresence({ action: null });
   }
+
+  const [nameMissing, setNameMissing] = createSignal(false);
 
   function save(e: SubmitEvent) {
     e.preventDefault();
@@ -154,7 +166,9 @@ export function Calendar(props: WidgetProps) {
     if (!d) return;
     const title = d.title.trim();
     if (!title) {
-      props.onError("Give the event a name.");
+      // Said at the field itself, not in a toast across the screen.
+      setNameMissing(true);
+      (e.currentTarget as HTMLFormElement).querySelector<HTMLInputElement>("input")?.focus();
       return;
     }
     let when: { day: string | null; start: number | null; end: number | null };
@@ -179,7 +193,8 @@ export function Calendar(props: WidgetProps) {
 
   // ------------------------------------------------------------ parts
 
-  const Chip = (p: { event: CalendarEvent; long?: boolean }) => (
+  /** `long`: the day view, with the end time. `brief`: a month cell, title only (the time is in its tooltip). */
+  const Chip = (p: { event: CalendarEvent; long?: boolean; brief?: boolean }) => (
     <button
       type="button"
       class={styles.chip}
@@ -192,7 +207,7 @@ export function Calendar(props: WidgetProps) {
         openEdit(p.event);
       }}
     >
-      <Show when={p.event.start !== null}>
+      <Show when={p.event.start !== null && !p.brief}>
         <span class={styles.chipTime}>
           {clock(p.event.start!)}
           {p.long ? `–${clock(p.event.end ?? p.event.start!)}` : ""}
@@ -289,14 +304,35 @@ export function Calendar(props: WidgetProps) {
                     class={styles.cell}
                     data-other={!sameMonth(date, view().anchor)}
                     data-today={date === today()}
+                    data-date={date}
                     role="button"
-                    tabindex="-1"
+                    // One day in the tab order; arrows move between days, Enter opens one.
+                    tabindex={date === focusDay() ? 0 : -1}
                     aria-label={`${fromDateStr(date).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}, ${eventsOn(date).length} events`}
                     onClick={() => go({ mode: "day", anchor: date })}
+                    onFocus={(e) => {
+                      if (e.target === e.currentTarget) setPicked(date);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return;
+                      const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+                      if (step !== undefined) {
+                        e.preventDefault();
+                        const to = addDays(date, step);
+                        if (!monthGrid(view().anchor).includes(to)) return;
+                        setPicked(to);
+                        e.currentTarget.parentElement
+                          ?.querySelector<HTMLElement>(`[data-date="${to}"]`)
+                          ?.focus();
+                      } else if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        go({ mode: "day", anchor: date });
+                      }
+                    }}
                   >
                     <span class={styles.num}>{fromDateStr(date).getDate()}</span>
                     <For each={eventsOn(date).slice(0, 2)} keyed={(e) => e.id}>
-                      {(e) => <Chip event={e()} />}
+                      {(e) => <Chip event={e()} brief />}
                     </For>
                     <Show when={eventsOn(date).length > 2}>
                       <span class={styles.more}>+{eventsOn(date).length - 2}</span>
@@ -319,7 +355,7 @@ export function Calendar(props: WidgetProps) {
                       <span>{fromDateStr(date).toLocaleDateString(undefined, { weekday: "short" })}</span>
                       <span class={styles.colNum}>{fromDateStr(date).getDate()}</span>
                     </button>
-                    <div class={styles.colBody}>
+                    <div class={styles.colBody} data-scroll>
                       <For each={eventsOn(date)} keyed={(e) => e.id}>
                         {(e) => <Chip event={e()} />}
                       </For>
@@ -330,7 +366,7 @@ export function Calendar(props: WidgetProps) {
             </div>
           </Match>
           <Match when={view().mode === "day"}>
-            <ul class={[parts.scroll, styles.day]} aria-label="Events">
+            <ul class={[parts.scroll, styles.day]} data-scroll aria-label="Events">
               <For each={eventsOn(view().anchor)} keyed={(e) => e.id}>
                 {(e) => (
                   <li>
@@ -362,11 +398,22 @@ export function Calendar(props: WidgetProps) {
                 placeholder="Event name"
                 maxlength={EVENT_TITLE_MAX}
                 aria-label="Event name"
-                onInput={(e) => setDraft({ ...d(), title: e.currentTarget.value })}
+                aria-invalid={nameMissing() ? "true" : undefined}
+                aria-describedby={nameMissing() ? `${props.id}-name-missing` : undefined}
+                data-invalid={nameMissing() || undefined}
+                onInput={(e) => {
+                  setNameMissing(false);
+                  setDraft({ ...d(), title: e.currentTarget.value });
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Escape") closeForm();
                 }}
               />
+              <Show when={nameMissing()}>
+                <p id={`${props.id}-name-missing`} class={styles.formError} role="alert">
+                  Give the event a name.
+                </p>
+              </Show>
               <div class={styles.formRow}>
                 <DatePicker
                   class={styles.field}
@@ -418,6 +465,28 @@ export function Calendar(props: WidgetProps) {
                   Save
                 </button>
               </div>
+              {/* The form covers the widget, so say what's already on that day. */}
+              <Show when={eventsOn(d().date).filter((e) => e.id !== d().eventId)}>
+                {(same) => (
+                  <Show when={same().length > 0}>
+                    <div class={styles.formSame}>
+                      <p class={styles.formSameHead}>Also that day</p>
+                      <ul class={styles.formSameList}>
+                        <For each={same()} keyed={(e) => e.id}>
+                          {(e) => (
+                            <li style={personVars(e().hue)}>
+                              <span class={styles.chipTime}>
+                                {e().start !== null ? clock(e().start!) : "All day"}
+                              </span>{" "}
+                              {e().title}
+                            </li>
+                          )}
+                        </For>
+                      </ul>
+                    </div>
+                  </Show>
+                )}
+              </Show>
             </form>
           )}
         </Show>

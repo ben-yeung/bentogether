@@ -80,7 +80,7 @@
   position: absolute;
   right: 0;
   top: calc(100% + 0.4rem);
-  z-index: 5;
+  z-index: 20;
   display: grid;
   grid-template-columns: repeat(6, auto);
   gap: 0.4rem;
@@ -96,6 +96,10 @@
   from {
     opacity: 0;
     transform: translateY(-4px) scale(0.97);
+  }
+  /* Opaque early, so the switches below never show through it. */
+  40% {
+    opacity: 1;
   }
 }
 

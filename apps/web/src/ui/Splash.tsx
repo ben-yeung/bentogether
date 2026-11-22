@@ -304,7 +304,8 @@ export function Splash(props: { children: JSX.Element; label: string; size?: "wi
             const spot = () => spots()[i()];
             return (
               <div
-                ref={(el) => (ghostEls[i()] = el)}
+                // GHOSTS never changes, so its own index is fixed (no reactive read here).
+                ref={(el) => (ghostEls[GHOSTS.indexOf(g)] = el)}
                 class={styles.ghostCursor}
                 data-placed={spot() ? "" : undefined}
                 style={{

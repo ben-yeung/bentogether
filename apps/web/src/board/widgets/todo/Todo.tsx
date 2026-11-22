@@ -124,7 +124,7 @@ export function Todo(props: WidgetProps) {
       class={styles.todo}
       color={s().color(props.id)}
       label={`To-do by ${author()}: ${title() || "untitled"}, ${doneCount()} of ${items().length} done`}
-      deleteLabel="Delete list"
+      deleteLabel="Delete to-do"
       onActivate={props.readOnly ? undefined : () => addInput?.focus()}
     >
       <input
@@ -154,7 +154,7 @@ export function Todo(props: WidgetProps) {
         }}
       />
 
-      <ul class={styles.list} ref={listEl} aria-label="Items">
+      <ul class={styles.list} ref={listEl} data-scroll aria-label="Items">
         <For each={ids()}>
           {(itemId, index) => (
             <Show when={byId().get(itemId)}>

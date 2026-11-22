@@ -150,6 +150,10 @@
   pointer-events: none;
 }
 
+.input::placeholder {
+  color: color-mix(in srgb, var(--lacquer) 40%, transparent);
+}
+
 .placeholder {
   color: color-mix(in srgb, var(--lacquer) 45%, transparent);
 }
