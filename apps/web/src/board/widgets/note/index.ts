@@ -4,7 +4,7 @@ import { NotePreview } from "./Preview";
 
 export const note: WidgetDef = {
   kind: "note",
-  name: "Sticky Note",
+  name: "Note",
   blurb: "Live, shared text.",
   View: Note,
   Preview: NotePreview,

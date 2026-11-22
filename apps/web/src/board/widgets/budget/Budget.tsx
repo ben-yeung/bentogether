@@ -90,7 +90,10 @@ export function Budget(props: WidgetProps) {
 
   // ------------------------------------------------- spend or add
 
-  /** The amount you're about to apply. It stays after − or + so repeating it is one click. */
+  /**
+   * The amount you're about to apply. It clears after − or +, so a second
+   * click can't spend it twice by accident; focus goes back to the field.
+   */
   const [amountDraft, setAmountDraft] = createSignal("");
   let amountField: HTMLInputElement | undefined;
 
@@ -107,7 +110,8 @@ export function Budget(props: WidgetProps) {
       return;
     }
     const negative = (parsed.sign ?? sign) === "-";
-    setAmountDraft(editableAmount(parsed.hundredths, currency()));
+    setAmountDraft("");
+    amountField?.focus();
     void change({ do: "adjust", by: negative ? -parsed.hundredths : parsed.hundredths });
   }
 
@@ -259,7 +263,7 @@ export function Budget(props: WidgetProps) {
             <span class={styles.caption}>{caption()}</span>
           </p>
           <Show when={state().log.length > 0} fallback={<p class={styles.empty}>No changes yet.</p>}>
-            <ol class={styles.log} aria-label="Recent changes">
+            <ol class={styles.log} data-scroll aria-label="Recent changes">
               <For each={state().log}>
                 {(entry) => (
                   <li class={styles.logEntry} style={personVars(entry.hue)}>

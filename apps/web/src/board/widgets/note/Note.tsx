@@ -306,6 +306,8 @@ export function Note(props: WidgetProps) {
             class={styles.input}
             maxlength={NOTE_TEXT_MAX}
             aria-label="Note text"
+            // Teaches the formatting on an empty note; gone once you type.
+            placeholder={"Write here.\n- starts a list, [ ] a box\n# heading, **bold**, _italic_"}
             onInput={onInput}
             onKeyDown={(e) => {
               // Enter carries a list on, or ends it on an empty item.

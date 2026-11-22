@@ -1,4 +1,4 @@
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { IDEA_TEXT_MAX, IDEAS_MAX, randomId } from "@bentogether/shared";
 import { personVars } from "../../../lib/identity";
 import { WidgetFrame, type WidgetProps } from "../../frame/WidgetFrame";
@@ -28,9 +28,29 @@ export function Ideas(props: WidgetProps) {
   const me = () => s().voter();
 
   /** Most votes first; ties keep the order they were added. */
-  const ideas = createMemo(() =>
+  const ranked = createMemo(() =>
     [...(board()?.ideas ?? [])].sort((a, b) => b.votes.length - a.votes.length || a.at - b.at),
   );
+
+  /**
+   * While your pointer or focus is in the list, rows hold still: voting
+   * mustn't slide another idea under your next click. They re-sort when you
+   * leave. New ideas join at the end; deleted ones drop out.
+   */
+  const [held, setHeld] = createSignal<string[] | null>(null);
+  const hold = () => {
+    if (!held()) setHeld(ranked().map((i) => i.id));
+  };
+  const release = (e: { currentTarget: HTMLElement; relatedTarget: EventTarget | null }) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setHeld(null);
+  };
+  const ideas = createMemo(() => {
+    const order = held();
+    const list = ranked();
+    if (!order) return list;
+    const at = new Map(order.map((id, i) => [id, i]));
+    return [...list].sort((a, b) => (at.get(a.id) ?? Infinity) - (at.get(b.id) ?? Infinity) || a.at - b.at);
+  });
 
   const rows = createRows(() => ideas());
 
@@ -52,7 +72,20 @@ export function Ideas(props: WidgetProps) {
         onError={props.onError}
       />
 
-      <ol class={[parts.scroll, styles.list]} aria-label="Ideas">
+      <ol
+        class={[parts.scroll, styles.list]}
+        data-scroll
+        aria-label="Ideas"
+        onPointerEnter={hold}
+        onPointerLeave={(e) => {
+          // Keyboard users still in the list keep it still too.
+          if (!e.currentTarget.contains(document.activeElement)) setHeld(null);
+        }}
+        onFocusIn={hold}
+        onFocusOut={(e) => {
+          if (!e.currentTarget.matches(":hover")) release(e);
+        }}
+      >
         <For each={rows.ids()}>
           {(ideaId) => (
             <Show when={rows.get(ideaId)}>
@@ -64,7 +97,7 @@ export function Ideas(props: WidgetProps) {
                       type="button"
                       class={styles.up}
                       aria-pressed={voted() ? "true" : "false"}
-                      aria-label={`${voted() ? "Take back your vote for" : "Vote for"} ${idea().text}, ${idea().votes.length} votes`}
+                      aria-label={`${voted() ? "Take back your vote for" : "Vote for"} ${idea().text}, ${idea().votes.length} ${idea().votes.length === 1 ? "vote" : "votes"}`}
                       onClick={() => void change({ do: "upvote", ideaId: idea().id, on: !voted() })}
                     >
                       <svg viewBox="0 0 12 12" aria-hidden="true">

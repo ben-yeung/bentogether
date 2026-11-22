@@ -40,6 +40,8 @@ export function ColorTools(props: {
         data-swatch={c}
         aria-label={`Color: ${COLOR_LABEL[c]}`}
         aria-pressed={props.color === c ? "true" : "false"}
+        // One tab stop for the row: the current color. Arrows move between them.
+        tabindex={props.color === c ? 0 : -1}
         onClick={() => {
           if (inPalette) {
             setOpen(false);
@@ -54,10 +56,25 @@ export function ColorTools(props: {
   return (
     <span
       class={styles.group}
+      role={props.compact ? undefined : "group"}
+      aria-label={props.compact ? undefined : props.label}
       onFocusOut={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
       }}
       onKeyDown={(e) => {
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          const row = [
+            ...(e.currentTarget as HTMLElement).querySelectorAll<HTMLElement>(
+              `.${styles.swatch}:not([data-dot])`,
+            ),
+          ];
+          const at = row.indexOf(document.activeElement as HTMLElement);
+          if (at < 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          row[(at + (e.key === "ArrowRight" ? 1 : row.length - 1)) % row.length]?.focus();
+          return;
+        }
         if (e.key === "Escape" && open()) {
           e.preventDefault();
           e.stopPropagation();

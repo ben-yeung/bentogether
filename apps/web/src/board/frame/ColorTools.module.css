@@ -4,12 +4,21 @@
 }
 
 .swatch {
+  position: relative;
   width: 0.85em;
   height: 0.85em;
   padding: 0;
   border-radius: 50%;
   border: 1.5px solid color-mix(in srgb, var(--lacquer) 30%, transparent);
   background: var(--ing-tamago);
+}
+
+/* Drawn small, but each takes clicks over at least 24px (WCAG 2.2). */
+.swatch::after {
+  content: "";
+  position: absolute;
+  inset: min(-0.2em, calc((0.85em - 24px) / 2));
+  border-radius: 50%;
 }
 
 .swatch[data-swatch="sake"] {

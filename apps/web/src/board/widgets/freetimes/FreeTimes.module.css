@@ -138,6 +138,12 @@ tbody tr:first-child .cell::before {
  * all, a run of them one rounded block. It sits on the cell's own box, not
  * the bars' overlapping one, so stacked cells never double up at the seams.
  */
+.cell:focus-visible {
+  outline: 2px solid var(--lacquer);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
 .cell[data-all-top] {
   border-top-left-radius: 0.45em;
   border-top-right-radius: 0.45em;

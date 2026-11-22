@@ -208,7 +208,7 @@ export function starterBento(boxId: string, now: number): Widget[] {
       ...frame("stips", { x: 9, y: 4, w: 3, h: 4 }, "shiso", "Tips"),
       kind: "note",
       size: "s",
-      text: "• Share the link: everyone sees changes as they happen.\n\n• Set new visitor permissions to view/edit\n\n• Password protect the link, or allow anyone with it to join\n",
+      text: "• Share the link: everyone sees changes as they happen.\n\n• Choose whether new visitors can view or edit.\n\n• Password protect the link, or let anyone with it join.\n",
     },
     {
       ...frame("scalendar", { x: 0, y: 8, w: 7, h: 5 }, "tamago", "Plans"),

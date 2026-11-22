@@ -297,6 +297,40 @@
   background: color-mix(in srgb, var(--lacquer) 38%, transparent);
 }
 
+/* The row holds the link and, on hover or focus, a small "remove" button. */
+.boxRow {
+  position: relative;
+}
+
+.boxForget {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  translate: 0 -50%;
+  background: var(--rice-raised);
+  color: var(--lacquer-faint);
+  opacity: 0;
+  transition: opacity 120ms var(--ease-soft);
+}
+
+.boxRow:hover .boxForget,
+.boxForget:focus-visible {
+  opacity: 1;
+}
+
+/* Touch screens have no hover: keep it showing. */
+@media (hover: none) {
+  .boxForget {
+    opacity: 1;
+  }
+
+  .boxRow .boxDate {
+    margin-right: 2rem;
+  }
+}
+
 .boxLink {
   display: flex;
   align-items: center;

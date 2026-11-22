@@ -49,7 +49,7 @@ type Attachment = { sid: string; peer: Peer | null; at?: number };
 /** A connection's rate limits. In memory only: hibernation resets them. */
 type Limits = { all: TokenBucket; op: TokenBucket; settings: TokenBucket; strikes: TokenBucket };
 
-const SETTINGS = new Set(["rename", "retitle", "access", "options", "role", "clear", "delete"]);
+const SETTINGS = new Set(["rename", "recolor", "retitle", "access", "options", "role", "clear", "delete"]);
 
 /**
  * One Durable Object per box. It owns the box's state (SQLite), holds every
@@ -256,6 +256,12 @@ export class Box extends DurableObject<Env> {
         return;
       case "rename": {
         const out = room.rename(a.sid, msg.name);
+        this.attach(ws, a.sid);
+        this.dispatch(out);
+        return;
+      }
+      case "recolor": {
+        const out = room.recolor(a.sid, msg.hue);
         this.attach(ws, a.sid);
         this.dispatch(out);
         return;

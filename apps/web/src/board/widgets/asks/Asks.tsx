@@ -115,7 +115,7 @@ export function Asks(props: WidgetProps) {
               label="Asks title"
               onError={props.onError}
             />
-            <ul class={[parts.scroll, styles.people]} aria-label="People">
+            <ul class={[parts.scroll, styles.people]} data-scroll aria-label="People">
               <For each={peopleRows.ids()}>
                 {(personId) => (
                   <Show when={peopleRows.get(personId)}>
@@ -184,7 +184,7 @@ export function Asks(props: WidgetProps) {
                 onEditing={editing}
               />
             </div>
-            <ul class={[parts.scroll, styles.asksList]} aria-label={`Asks for ${p().name}`}>
+            <ul class={[parts.scroll, styles.asksList]} data-scroll aria-label={`Asks for ${p().name}`}>
               <For each={askRows.ids()}>
                 {(askId) => (
                   <Show when={askRows.get(askId)}>

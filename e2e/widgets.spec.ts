@@ -79,7 +79,7 @@ test("viewers vote in polls and upvote ideas, but can't change them", async ({ b
   await ideasB.getByRole("button", { name: /^Vote for Karaoke/ }).click();
   // The most wanted rises to the top for everyone.
   await expect(ideasA.getByRole("listitem").first()).toContainText("Karaoke");
-  await expect(ideasA.getByRole("button", { name: /^Vote for Karaoke, 1 votes/ })).toBeVisible();
+  await expect(ideasA.getByRole("button", { name: /^Vote for Karaoke, 1 vote\b/ })).toBeVisible();
   await expect(ideasB.getByLabel("Add an idea")).toHaveCount(0);
 });
 
@@ -183,11 +183,51 @@ test("deleting asks first; guests delete only what they added, the creator anyth
   await expect(pollB).toHaveCount(0);
 });
 
+test("to-do: clicking an item's text ticks it; its text is edited from the pencil", async ({ browser }) => {
+  const [a, b] = await twoAtTable(browser, "Ticks");
+  const list = await add(a, "To-do");
+  await list.getByLabel("Add an item").fill("Buy rice");
+  await list.getByLabel("Add an item").press("Enter");
+
+  // The text ticks and unticks it, for everyone; no field opens.
+  await list.getByText("Buy rice", { exact: true }).click();
+  await expect(b.getByRole("checkbox", { name: "Buy rice" })).toHaveAttribute("aria-checked", "true");
+  await expect(list.getByLabel("Item text")).toHaveCount(0);
+  await list.getByText("Buy rice", { exact: true }).click();
+  await expect(b.getByRole("checkbox", { name: "Buy rice" })).toHaveAttribute("aria-checked", "false");
+
+  // Editing is behind its own button.
+  await list.getByText("Buy rice", { exact: true }).hover();
+  await list.getByRole("button", { name: "Edit Buy rice" }).click();
+  await list.getByLabel("Item text").fill("Buy sushi rice");
+  await list.getByLabel("Item text").press("Enter");
+  await expect(b.getByRole("checkbox", { name: "Buy sushi rice" })).toHaveAttribute("aria-checked", "false");
+});
+
+test("a deleted widget comes back with Undo, for everyone, as it was", async ({ browser }) => {
+  const [a, b] = await twoAtTable(browser, "Second thoughts");
+  const list = await add(a, "To-do");
+  await list.getByLabel("Add an item").fill("Keep me");
+  await list.getByLabel("Add an item").press("Enter");
+  await expect(b.locator('[data-kind="todo"]')).toContainText("Keep me");
+
+  await list.hover();
+  await list.getByRole("button", { name: "Delete to-do" }).click();
+  await list.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(b.locator('[data-kind="todo"]')).toHaveCount(0);
+
+  // Only whoever deleted it is offered Undo.
+  await expect(b.getByRole("button", { name: "Undo", exact: true })).toHaveCount(0);
+  await a.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(a.locator('[data-kind="todo"]')).toContainText("Keep me");
+  await expect(b.locator('[data-kind="todo"]')).toContainText("Keep me");
+});
+
 test("notes: a dash starts a bullet list, Enter carries it on, and markdown shows when done", async ({
   browser,
 }) => {
   const [a, b] = await twoAtTable(browser, "Markdown");
-  const note = await add(a, "Sticky Note");
+  const note = await add(a, "Note");
   await note.click();
   const field = a.getByLabel("Note text");
   await field.pressSequentially("## Bring **snacks**", { delay: 10 });
@@ -209,18 +249,18 @@ test("notes: a dash starts a bullet list, Enter carries it on, and markdown show
 
 test("the creator can clear the bento after confirming; guests can't", async ({ browser }) => {
   const [a, b] = await twoAtTable(browser, "Clear");
-  await add(a, "Sticky Note");
+  await add(a, "Note");
   await add(a, "Poll");
   await expect(b.locator("[data-widget]")).toHaveCount(2);
 
   // Guests see the button, but can't use it.
   await b.getByRole("button", { name: "Bento settings" }).click();
-  await expect(b.getByRole("button", { name: "Clear Bento" })).toBeDisabled();
+  await expect(b.getByRole("button", { name: "Clear bento" })).toBeDisabled();
   await b.keyboard.press("Escape");
 
   // Backing out of the confirmation keeps everything.
   await a.getByRole("button", { name: "Bento settings" }).click();
-  await a.getByRole("button", { name: "Clear Bento" }).click();
+  await a.getByRole("button", { name: "Clear bento" }).click();
   const confirm = a.getByRole("dialog", { name: "Clear this bento?" });
   await expect(confirm).toContainText("removes all 2 widgets");
   await confirm.getByRole("button", { name: "Keep it" }).click();
@@ -228,8 +268,8 @@ test("the creator can clear the bento after confirming; guests can't", async ({ 
   await expect(a.locator("[data-widget]")).toHaveCount(2);
 
   await a.getByRole("button", { name: "Bento settings" }).click();
-  await a.getByRole("button", { name: "Clear Bento" }).click();
-  await confirm.getByRole("button", { name: "Clear Bento" }).click();
+  await a.getByRole("button", { name: "Clear bento" }).click();
+  await confirm.getByRole("button", { name: "Clear bento" }).click();
   await expect(b.locator("[data-widget]")).toHaveCount(0);
   await expect(b.getByText("An empty bento.")).toBeVisible();
   // It stays cleared for someone arriving later.

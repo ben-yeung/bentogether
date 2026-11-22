@@ -173,7 +173,11 @@
 .text {
   min-width: 0;
   overflow-wrap: anywhere;
-  cursor: text;
+}
+
+/* Clicking the text ticks the item, like its checkbox. */
+.text[data-toggles] {
+  cursor: pointer;
 }
 
 .row[data-done] .text {
@@ -186,7 +190,13 @@
   border-bottom: 1px solid color-mix(in srgb, var(--lacquer) 35%, transparent);
 }
 
-.removeItem {
+/* Edit and remove, at the right end of the row, shown on hover. */
+.itemTools {
+  display: flex;
+  gap: 0.1em;
+}
+
+.itemTool {
   display: grid;
   place-items: center;
   width: 1.1em;
@@ -202,7 +212,7 @@
   transition: opacity 120ms var(--ease-soft);
 }
 
-.removeItem svg {
+.itemTool svg {
   width: 0.8em;
   height: 0.8em;
   fill: none;
@@ -212,12 +222,12 @@
   stroke-linejoin: round;
 }
 
-.row:hover .removeItem,
-.removeItem:focus-visible {
+.row:hover .itemTool,
+.itemTool:focus-visible {
   opacity: 1;
 }
 
-.removeItem:hover {
+.itemTool:hover {
   background: color-mix(in srgb, var(--lacquer) 10%, transparent);
   color: var(--lacquer);
 }
@@ -270,7 +280,7 @@
 @media (prefers-reduced-motion: reduce) {
   .grip,
   .check,
-  .removeItem {
+  .itemTool {
     transition: none;
   }
 }

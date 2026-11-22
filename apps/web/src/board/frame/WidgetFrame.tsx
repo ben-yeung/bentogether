@@ -22,7 +22,14 @@ export type WidgetProps = {
   /** Color of whoever else is carrying it or working in it. */
   ringHue: number | null;
   onPointerDown: (e: PointerEvent, mode: "move" | "resize") => void;
+  /**
+   * Keyboard carry: shows `rect` as a preview (others make room, nothing is
+   * saved) and returns it clamped to what the kind allows; null puts it down.
+   */
+  onKeyCarry: (rect: Rect | null, mode: "move" | "resize") => Rect | null;
   onError: (message: string) => void;
+  /** After a delete went through: offers to bring it back ("Note deleted · Undo"). */
+  onDeleted: (what: string) => void;
   /** A calm heads-up, not an error (say, your typing was kept to copy). */
   onNotice?: (message: string) => void;
   /** Viewers see widgets but can't move, resize or delete them. */
@@ -32,7 +39,9 @@ export type WidgetProps = {
 /**
  * The frame every widget shares: its cell on the grid, the lift and
  * colored ring while someone carries it, delete in the corner, the resize
- * grip, and keyboard moves (arrows), resizes (Shift+arrows) and delete.
+ * grip, and keyboard moves: Space picks it up, arrows move it (Shift+arrows
+ * resize), Enter or Space puts it down and Escape cancels. Nothing moves
+ * for anyone else until it's put down, so a stray arrow key does nothing.
  * What goes inside is up to the kind.
  */
 export function WidgetFrame(
@@ -40,7 +49,7 @@ export function WidgetFrame(
     kind: WidgetKind;
     color: NoteColor;
     label: string;
-    /** "Delete note", "Delete list". */
+    /** "Delete note", "Delete to-do". */
     deleteLabel: string;
     editing?: boolean;
     /** Extra classes: one, or a list. */
@@ -60,6 +69,20 @@ export function WidgetFrame(
   /** The owner deletes anything; editors only the widgets they added. */
   const canDelete = () => !props.readOnly && s().canDelete(props.id);
   let frame!: HTMLElement;
+  /** Picked up with the keyboard: where it would land, not saved yet. */
+  const [held, setHeld] = createSignal<{ rect: Rect; start: Rect } | null>(null);
+  /** Read out by screen readers as you pick up, move and drop. */
+  const [said, setSaid] = createSignal("");
+
+  function putDown(commit: boolean) {
+    const h = held();
+    if (!h) return;
+    setHeld(null);
+    props.onKeyCarry(null, "move");
+    const moved = !sameRect(h.rect, h.start);
+    if (commit && moved) s().move(props.id, h.rect).catch(fail);
+    setSaid(commit ? (moved ? "Put down." : "Put back.") : "Cancelled. It's back where it was.");
+  }
 
   function cancelDelete() {
     setConfirming(false);
@@ -68,28 +91,58 @@ export function WidgetFrame(
 
   function onKeyDown(e: KeyboardEvent & { currentTarget: HTMLElement }) {
     if (props.readOnly) return;
+    if (held()) {
+      // While it's held, every key is about carrying it.
+      const h = held()!;
+      const nudge = (dx: number, dy: number, resize: boolean) => {
+        e.preventDefault();
+        const r = h.rect;
+        const to = resize ? { ...r, w: r.w + dx, h: r.h + dy } : { ...r, x: r.x + dx, y: r.y + dy };
+        const shown = props.onKeyCarry(to, resize ? "resize" : "move");
+        if (shown) {
+          setHeld({ ...h, rect: shown });
+          setSaid(`Column ${shown.x + 1}, row ${shown.y + 1}, ${shown.w} by ${shown.h}.`);
+        }
+      };
+      switch (e.key) {
+        case "ArrowLeft":
+          return nudge(-1, 0, e.shiftKey);
+        case "ArrowRight":
+          return nudge(1, 0, e.shiftKey);
+        case "ArrowUp":
+          return nudge(0, -1, e.shiftKey);
+        case "ArrowDown":
+          return nudge(0, 1, e.shiftKey);
+        case "Enter":
+        case " ":
+          e.preventDefault();
+          return putDown(true);
+        case "Escape":
+          e.preventDefault();
+          e.stopPropagation();
+          return putDown(false);
+        case "Tab":
+          return putDown(true);
+      }
+      return;
+    }
     if (props.onKey?.(e)) return;
     if (e.target !== e.currentTarget) return;
-    const r = props.rect;
-    const nudge = (dx: number, dy: number, resize: boolean) => {
-      e.preventDefault();
-      const to = resize ? { ...r, w: r.w + dx, h: r.h + dy } : { ...r, x: r.x + dx, y: r.y + dy };
-      s().move(props.id, to).catch(fail);
-    };
     switch (e.key) {
       case "Enter":
         if (!props.onActivate) return;
         e.preventDefault();
         props.onActivate();
         return;
-      case "ArrowLeft":
-        return nudge(-1, 0, e.shiftKey);
-      case "ArrowRight":
-        return nudge(1, 0, e.shiftKey);
-      case "ArrowUp":
-        return nudge(0, -1, e.shiftKey);
-      case "ArrowDown":
-        return nudge(0, 1, e.shiftKey);
+      case " ": {
+        e.preventDefault();
+        const r = props.rect;
+        const start = { x: r.x, y: r.y, w: r.w, h: r.h };
+        props.onKeyCarry(start, "move");
+        setHeld({ rect: start, start });
+        setSaid("Picked up. Arrows move it, Shift and arrows resize it. Enter puts it down, Escape cancels.");
+        return;
+      }
       case "Delete":
       case "Backspace":
         e.preventDefault();
@@ -113,8 +166,12 @@ export function WidgetFrame(
       data-ringed={props.ringHue !== null}
       data-readonly={props.readOnly}
       data-confirming={confirming()}
+      data-held={held() !== null}
       tabindex="0"
       aria-label={props.label}
+      aria-description={
+        props.readOnly ? undefined : "Press Space to move it with the arrow keys. Enter opens it."
+      }
       style={{
         ...props.style,
         "--x": props.rect.x,
@@ -135,7 +192,14 @@ export function WidgetFrame(
         props.onActivate();
       }}
       onKeyDown={onKeyDown}
+      onFocusOut={(e) => {
+        // Clicking or tabbing away puts it down where it is.
+        if (held() && !e.currentTarget.contains(e.relatedTarget as Node | null)) putDown(true);
+      }}
     >
+      <span class="visually-hidden" aria-live="polite">
+        {said()}
+      </span>
       <Show when={canDelete()}>
         <button
           type="button"
@@ -189,7 +253,11 @@ export function WidgetFrame(
                 class={styles.confirmDelete}
                 onClick={() => {
                   setConfirming(false);
-                  s().remove(props.id).catch(fail);
+                  const what = props.deleteLabel.replace(/^Delete /, "");
+                  s()
+                    .remove(props.id)
+                    .then(() => props.onDeleted(what))
+                    .catch(fail);
                 }}
               >
                 Delete
@@ -212,6 +280,10 @@ export function WidgetFrame(
       </Show>
     </article>
   );
+}
+
+function sameRect(a: Rect, b: Rect) {
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }
 
 /** Class names for the parts kinds share: the footer row, byline and hover tools. */

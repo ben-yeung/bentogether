@@ -81,6 +81,11 @@
   cursor: pointer;
 }
 
+.cell:focus-visible {
+  outline: 2px solid var(--lacquer);
+  outline-offset: -2px;
+}
+
 .cell:hover {
   background: color-mix(in srgb, #fff 55%, transparent);
 }
@@ -237,6 +242,45 @@
   font-size: 1.1em;
   font-weight: 650;
   border-bottom: 1px solid color-mix(in srgb, var(--lacquer) 25%, transparent);
+}
+
+.formTitle[data-invalid] {
+  border-bottom-color: var(--shu);
+}
+
+.formError {
+  margin: -0.2em 0 0;
+  color: var(--shu);
+  font-size: 0.85em;
+}
+
+.formSame {
+  margin-top: 0.4em;
+  padding-top: 0.5em;
+  border-top: 1px dashed color-mix(in srgb, var(--lacquer) 20%, transparent);
+}
+
+.formSameHead {
+  margin: 0 0 0.25em;
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lacquer) 60%, transparent);
+}
+
+.formSameList {
+  display: grid;
+  gap: 0.2em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9em;
+}
+
+.formSameList li {
+  padding-left: 0.5em;
+  border-left: 3px solid var(--c);
 }
 
 .formRow {

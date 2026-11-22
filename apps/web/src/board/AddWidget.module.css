@@ -77,6 +77,10 @@
     opacity: 0;
     transform: translateY(8px) scale(0.98);
   }
+  /* Opaque early, so the page never shows through mid-arrival. */
+  40% {
+    opacity: 1;
+  }
 }
 
 .title {

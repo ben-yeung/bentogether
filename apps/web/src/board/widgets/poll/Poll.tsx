@@ -69,7 +69,7 @@ export function Poll(props: WidgetProps) {
         onError={props.onError}
       />
 
-      <ul class={[parts.scroll, styles.options]} aria-label="Options">
+      <ul class={[parts.scroll, styles.options]} data-scroll aria-label="Options">
         <For each={rows.ids()}>
           {(optionId) => (
             <Show when={rows.get(optionId)}>

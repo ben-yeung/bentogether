@@ -18,12 +18,12 @@ async function newBox(page: Page, title: string, opts: { starter?: boolean; curs
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
 }
 
-/** The floating "+" opens the widget picker; pick a Sticky Note. */
+/** The floating "+" opens the widget picker; pick a Note. */
 async function addNote(page: Page) {
   await page.getByRole("button", { name: "Add to bento" }).click();
   await page
     .getByRole("dialog", { name: "Add to bento" })
-    .getByRole("button", { name: /Sticky Note/ })
+    .getByRole("button", { name: /^Note\b/ })
     .click();
 }
 
@@ -436,13 +436,16 @@ test("a budget is shared live: set, subtract and add together, history and curre
   for (const budget of [budgetA, budgetB])
     await expect(budget.getByRole("button", { name: /Set the amount/ })).toHaveText("$460");
 
-  // Add a typed amount; it stays in the field, so pressing again repeats it.
+  // Add a typed amount; the field clears (a second click can't spend it
+  // twice) and keeps focus for the next one.
   await budgetB.getByLabel("Amount to add or subtract").fill("12.50");
   await budgetB.getByRole("button", { name: "Add", exact: true }).click();
   await expect(budgetA.getByRole("button", { name: /Set the amount/ })).toHaveText("$472.50");
-  await expect(budgetB.getByLabel("Amount to add or subtract")).toHaveValue("12.50");
+  await expect(budgetB.getByLabel("Amount to add or subtract")).toHaveValue("");
+  await expect(budgetB.getByLabel("Amount to add or subtract")).toBeFocused();
 
   // Enter subtracts.
+  await budgetB.getByLabel("Amount to add or subtract").fill("12.50");
   await budgetB.getByLabel("Amount to add or subtract").press("Enter");
   await expect(budgetA.getByRole("button", { name: /Set the amount/ })).toHaveText("$460");
 

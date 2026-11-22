@@ -18,6 +18,13 @@
   transition: height var(--dur-snap) var(--ease-snap);
 }
 
+/* Fit to screen (narrow screens only): the whole width shows, smaller.
+   Everything scales with the pitch, so the layout and line wraps match
+   what everyone else sees; pinch to zoom in. */
+.scroller[data-fit] .board {
+  min-width: 0;
+}
+
 /* While the window is being resized (and before the first measure),
    rescaling snaps instead of animating. */
 .board[data-instant],

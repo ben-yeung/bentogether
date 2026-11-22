@@ -39,6 +39,10 @@
     opacity: 0;
     transform: translateY(8px) scale(0.98);
   }
+  /* Opaque early, so the page never shows through mid-arrival. */
+  40% {
+    opacity: 1;
+  }
 }
 
 /* Same top as the dialogs' 1.5rem padding, and as tall as their title line

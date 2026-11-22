@@ -72,6 +72,32 @@ button {
   border: 0;
 }
 
+/* Lists in widgets scroll with no bar (see Board's scroll hints). An edge
+   with more beyond it fades out, so hidden items don't go unnoticed. */
+[data-scroll] {
+  --scroll-fade: 1.4em;
+  /* Scrolling something into view clears the faded edge too. */
+  scroll-padding-block: var(--scroll-fade);
+}
+
+[data-scroll][data-more-below] {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--scroll-fade)), transparent);
+}
+
+[data-scroll][data-more-above] {
+  mask-image: linear-gradient(to top, #000 calc(100% - var(--scroll-fade)), transparent);
+}
+
+[data-scroll][data-more-above][data-more-below] {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--scroll-fade),
+    #000 calc(100% - var(--scroll-fade)),
+    transparent
+  );
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

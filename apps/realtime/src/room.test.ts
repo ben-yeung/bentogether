@@ -911,3 +911,73 @@ describe("timers, polls, ideas, asks, free times and calendars", () => {
     });
   });
 });
+
+describe("undoing a delete", () => {
+  function clocked() {
+    let now = 1000;
+    const room = new Room(meta, [], () => now);
+    room.join("s1", hello("Mochi"));
+    room.join("s2", hello("Nori"));
+    return { room, tick: (ms: number) => (now += ms) };
+  }
+
+  it("brings the widget back as it was, saved and sent to everyone", () => {
+    const { room } = clocked();
+    room.apply("s1", "a", { ...note("note0001", 3, 0), text: "Keep me" } as Op);
+    room.apply("s1", "b", { type: "delete", id: "note0001" });
+    const back = room.apply("s1", "c", { type: "restore", id: "note0001" });
+    expect(back.out[0]!.msg).toMatchObject({ t: "applied", opId: "c" });
+    expect(back.persist.now.has("note0001")).toBe(true);
+    const w = room.widgets.get("note0001") as NoteWidget;
+    expect([w.text, w.x, w.y]).toEqual(["Keep me", 3, 0]);
+  });
+
+  it("only for whoever deleted it", () => {
+    const { room } = clocked();
+    room.apply("s1", "a", note("note0001"));
+    room.apply("s1", "b", { type: "delete", id: "note0001" });
+    expect(room.apply("s2", "c", { type: "restore", id: "note0001" }).out[0]!.msg).toMatchObject({
+      t: "rejected",
+      code: "forbidden",
+    });
+  });
+
+  it("only for a short while, and only once", () => {
+    const { room, tick } = clocked();
+    room.apply("s1", "a", note("note0001"));
+    room.apply("s1", "b", note("note0002", 3, 0));
+    room.apply("s1", "c", { type: "delete", id: "note0001" });
+    room.apply("s1", "d", { type: "delete", id: "note0002" });
+    expect(room.apply("s1", "e", { type: "restore", id: "note0002" }).out[0]!.msg.t).toBe("applied");
+    expect(room.apply("s1", "f", { type: "restore", id: "note0002" }).out[0]!.msg).toMatchObject({
+      code: "not_found",
+    });
+    tick(16_000);
+    expect(room.apply("s1", "g", { type: "restore", id: "note0001" }).out[0]!.msg).toMatchObject({
+      t: "rejected",
+      code: "not_found",
+    });
+  });
+
+  it("not after the bento is cleared", () => {
+    const room = new Room(meta, [], () => 1000);
+    room.join("own", hello("Mochi"), true);
+    room.apply("own", "a", note("note0001"));
+    room.apply("own", "b", { type: "delete", id: "note0001" });
+    room.clear("own", "c");
+    expect(room.apply("own", "d", { type: "restore", id: "note0001" }).out[0]!.msg).toMatchObject({
+      code: "not_found",
+    });
+  });
+});
+
+describe("changing your color", () => {
+  it("tells everyone, kept apart from the others' colors", () => {
+    const room = setup();
+    const nori = room.peers.get("s2")!.hue;
+    const out = room.recolor("s1", nori);
+    const mochi = room.peers.get("s1")!.hue;
+    expect(hueDistance(mochi, nori)).toBeGreaterThanOrEqual(MIN_HUE_GAP);
+    expect(out[0]).toMatchObject({ target: { to: "all" }, msg: { t: "peer", sid: "s1", hue: mochi } });
+  });
+});
