@@ -1,5 +1,12 @@
 import * as v from "valibot";
-import { CLOSE, CreateBoxSchema, DeleteBoxSchema, ID_PATTERN, PROTOCOL_VERSION, randomId } from "@bentogether/shared";
+import {
+  CLOSE,
+  CreateBoxSchema,
+  DeleteBoxSchema,
+  ID_PATTERN,
+  PROTOCOL_VERSION,
+  randomId,
+} from "@bentogether/shared";
 import { ipKey, isQuotaError, originAllowed, socketVersion } from "./limits";
 import { devEnabled, devRoute, simulate } from "./dev";
 
@@ -100,7 +107,8 @@ async function route(request: Request, env: Env, allowed: boolean, cors: Headers
   }
 
   if (request.method === "DELETE") {
-    if (!(await env.CREATE_LIMITER.limit({ key: ip })).success) return json({ error: "rate_limited" }, 429, cors);
+    if (!(await env.CREATE_LIMITER.limit({ key: ip })).success)
+      return json({ error: "rate_limited" }, 429, cors);
     const body = v.safeParse(DeleteBoxSchema, await request.json().catch(() => ({})));
     if (!body.success) return json({ error: "invalid" }, 400, cors);
     const result = await env.BOX.getByName(id).deleteAsOwner(body.output.ownerToken);
