@@ -77,3 +77,16 @@ export async function getBox(id: string, signal?: AbortSignal): Promise<BoxInfo>
   if (!res.ok) throw new Error("Couldn't reach the bento. Try again in a moment.");
   return (await res.json()) as BoxInfo;
 }
+
+/** Deletes a bento you made, for everyone. Already gone counts as done. */
+export async function deleteBox(id: string, ownerToken: string): Promise<void> {
+  const res = await call(`/api/boxes/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ownerToken }),
+  });
+  if (res.ok || res.status === 404) return;
+  if (res.status === 403) throw new Error("Only the creator can delete this bento.");
+  if (res.status === 429) throw new Error("Too many deletes. Try again in a minute.");
+  throw new Error("Couldn't delete the bento. Try again.");
+}
