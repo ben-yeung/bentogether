@@ -140,6 +140,19 @@ export class Box extends DurableObject<Env> {
     };
   }
 
+  /**
+   * Deletes the bento for its owner, without a socket (the home page's
+   * recent list). Same effect as the owner's "delete" message.
+   */
+  async deleteAsOwner(token: string): Promise<"deleted" | "forbidden" | "not_found"> {
+    if (!this.room) return "not_found";
+    if (!(await this.isOwnerToken(token))) return "forbidden";
+    // Deleted by someone else while we hashed.
+    if (!this.room) return "not_found";
+    await this.destroy();
+    return "deleted";
+  }
+
   // ------------------------------------------------------- sockets
 
   override async fetch(request: Request): Promise<Response> {

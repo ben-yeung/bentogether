@@ -730,6 +730,11 @@ export const CreateBoxSchema = v.object({
 });
 export type CreateBox = v.InferInput<typeof CreateBoxSchema>;
 
+/** Body of `DELETE /api/boxes/:id`: the owner token proves it's theirs. */
+export const DeleteBoxSchema = v.object({
+  ownerToken: v.pipe(v.string(), v.minLength(1), v.maxLength(64)),
+});
+
 export type BoxMeta = {
   id: string;
   title: string;

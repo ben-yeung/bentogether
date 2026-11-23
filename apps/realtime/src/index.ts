@@ -1,5 +1,12 @@
 import * as v from "valibot";
-import { CLOSE, CreateBoxSchema, ID_PATTERN, PROTOCOL_VERSION, randomId } from "@bentogether/shared";
+import {
+  CLOSE,
+  CreateBoxSchema,
+  DeleteBoxSchema,
+  ID_PATTERN,
+  PROTOCOL_VERSION,
+  randomId,
+} from "@bentogether/shared";
 import { ipKey, isQuotaError, originAllowed, socketVersion } from "./limits";
 import { devEnabled, devRoute, simulate } from "./dev";
 
@@ -12,6 +19,7 @@ export { Box } from "./box";
  *
  *   POST /api/boxes            → { id }
  *   GET  /api/boxes/:id        → box meta, or 404
+ *   DELETE /api/boxes/:id      → 204 for its owner ({ ownerToken }), else 403/404
  *   GET  /api/boxes/:id/ws?v=N → WebSocket upgrade (N = PROTOCOL_VERSION)
  *   GET  /health               → ok
  *
@@ -98,6 +106,16 @@ async function route(request: Request, env: Env, allowed: boolean, cors: Headers
     return env.BOX.getByName(id).fetch(request);
   }
 
+  if (request.method === "DELETE") {
+    if (!(await env.CREATE_LIMITER.limit({ key: ip })).success)
+      return json({ error: "rate_limited" }, 429, cors);
+    const body = v.safeParse(DeleteBoxSchema, await request.json().catch(() => ({})));
+    if (!body.success) return json({ error: "invalid" }, 400, cors);
+    const result = await env.BOX.getByName(id).deleteAsOwner(body.output.ownerToken);
+    if (result === "deleted") return new Response(null, { status: 204, headers: cors });
+    return json({ error: result }, result === "forbidden" ? 403 : 404, cors);
+  }
+
   if (request.method !== "GET") return json({ error: "method_not_allowed" }, 405, cors);
   if (!(await env.META_LIMITER.limit({ key: ip })).success) return json({ error: "rate_limited" }, 429, cors);
   const stub = env.BOX.getByName(id);
@@ -126,7 +144,7 @@ function corsHeaders(origin: string | null): HeadersInit {
   if (!origin) return { Vary: "Origin" };
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",

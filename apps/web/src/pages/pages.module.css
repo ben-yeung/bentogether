@@ -320,6 +320,53 @@
   opacity: 1;
 }
 
+/* The trash sits where the date is: swap them rather than overlap. */
+@media (hover: hover) {
+  .boxRow:hover .boxDate,
+  .boxRow:has(.boxForget:focus-visible) .boxDate {
+    opacity: 0;
+  }
+}
+
+.boxForget:hover {
+  color: var(--danger);
+}
+
+/* Second step: the trash becomes a "Delete?" button to confirm. */
+.boxRow[data-armed] .boxDate {
+  opacity: 0;
+}
+
+.boxConfirm {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  translate: 0 -50%;
+  height: 1.75rem;
+  padding: 0 0.65rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--rice-raised);
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 600;
+  cursor: pointer;
+  animation: confirmIn 120ms var(--ease-soft);
+}
+
+.boxConfirm:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+@keyframes confirmIn {
+  from {
+    opacity: 0;
+    scale: 0.9;
+  }
+}
+
 /* Touch screens have no hover: keep it showing. */
 @media (hover: none) {
   .boxForget {
@@ -359,6 +406,7 @@
   font-size: var(--step--1);
   color: var(--lacquer-faint);
   white-space: nowrap;
+  transition: opacity 120ms var(--ease-soft);
 }
 
 .boxTitle,
